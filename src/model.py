@@ -1,4 +1,6 @@
 import discord
+import asyncio
+from threading import Thread
 from discord.ext.commands import Converter
 from copy import deepcopy
 from typing import List
@@ -40,6 +42,21 @@ class PlayMixArg(CustomBoolArgument):
     choices = ('Перемешать треки между собой', )
 class PlayMixWithQueueArg(CustomBoolArgument):
 	choices = ('Перемешать треки с другими треками в очереди', )
+
+class LoadingThread(Thread):
+	def __init__(self, target, args=(), kwargs={}) -> None:
+		super().__init__(target=target, args=args, kwargs=kwargs)
+		self.result = None
+		self.wait_time = 0
+
+	def run(self) -> None:
+		self.result = self._target(*self._args, **self._kwargs)
+
+	async def join(self) -> None:
+		while not self.result and self.wait_time < 180:
+			await asyncio.sleep(.05)
+			self.wait_time += .05
+		return self.result
 
 class LightContext:
 	def __init__(

@@ -2,7 +2,7 @@ import os
 import discord
 from discord import Option
 from config import Config
-from business import Storage
+from storage import Storage
 from model import (
 	TrackFile,
 	Playlist, 

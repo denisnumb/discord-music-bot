@@ -2,7 +2,9 @@ import discord
 import random
 from typing import Union, List
 from yt_dlp import YoutubeDL
-from business import MusicClient, LoadingThread, Storage, ChoicePlayOptionView
+from storage import Storage
+from music_client import MusicClient
+from views import ChoicePlayOptionView
 from model import (
 	Track,
 	TrackFile,
@@ -10,7 +12,8 @@ from model import (
 	LightContext,
 	AddTrackTypes,
 	PlayEmbedTypes,
-	YDL_OPTIONS
+	YDL_OPTIONS,
+	LoadingThread
 )
 from functions import (
 	get_data_type,

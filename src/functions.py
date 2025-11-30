@@ -5,7 +5,9 @@ from urllib.request import urlopen
 from urllib.parse import urlencode
 from yt_dlp import YoutubeDL
 from typing import Union, Set, List
-from business import MusicClient, Storage, AskYesNoView
+from music_client import MusicClient
+from storage import Storage
+from views import AskYesNoView
 from model import (
     PlayEmbedTypes,
 	TrackFile, 
