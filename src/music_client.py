@@ -18,6 +18,7 @@ from model import (
 	TrackFile
 )
 
+
 class MusicClient:
 	def __init__(self, channel: discord.TextChannel=None) -> None:
 		self.lock: asyncio.Lock = asyncio.Lock()
