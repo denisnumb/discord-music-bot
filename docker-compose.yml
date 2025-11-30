@@ -1,0 +1,10 @@
+version: "3"
+
+services:
+  musicbot:
+    build: .
+    container_name: musicbot
+    volumes:
+      - ./config.json:/app/config.json
+      - ./data:/app/data 
+    restart: unless-stopped

@@ -1,10 +1,10 @@
-import os
 import json
+from pathlib import Path
 from typing import List
 
 class Config:
-    __base_path = os.path.dirname(os.path.realpath(__file__))
-    _config_path = f'{__base_path}/config.json'
+    __base_path = Path(__file__).resolve().parent 
+    _config_path = __base_path.parent / 'config.json'
 
     token: str = ''
     guild_ids: List[int] = []

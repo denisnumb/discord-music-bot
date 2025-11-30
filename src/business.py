@@ -2,6 +2,7 @@ import json
 import os
 import discord
 import asyncio
+from pathlib import Path
 from threading import Thread
 from discord.ui import View, Button
 from yt_dlp import YoutubeDL
@@ -29,7 +30,7 @@ class LoadingThread(Thread):
 		self.result = self._target(*self._args, **self._kwargs)
 
 	async def join(self) -> None:
-		while not self.result and self.wait_time < 30:
+		while not self.result and self.wait_time < 180:
 			await asyncio.sleep(.05)
 			self.wait_time += .05
 		return self.result
@@ -299,16 +300,25 @@ class AskYesNoView(View):
 		return self.result
 
 class Storage:
-	__base_path = os.path.dirname(os.path.realpath(__file__))
-	_saved_urls_path = f'{__base_path}/data/saved_urls.json'
-	_audio_cache_path = f'{__base_path}/data/audio_cache.json'
-	_dj_channels_path = f'{__base_path}/data/dj_channels.json'
-	_cookies_file_path = f'{__base_path}/data/cookies.txt'
+	__base_path = Path(__file__).resolve().parent 
+	_saved_urls_path = __base_path.parent / 'data/saved_urls.json'
+	_audio_cache_path = __base_path.parent / 'data/audio_cache.json'
+	_dj_channels_path = __base_path.parent / 'data/dj_channels.json'
+	_cookies_file_path = __base_path.parent / 'data/cookies.txt'
 
 	music_clients: Dict[int, MusicClient] = {}
-	saved_urls: Dict[str, str] = {}
+	saved_urls: Dict[int, Dict[str, str]] = {}
 	audio_cache: Dict[str, Union[Track, Playlist]] = {}
 	dj_channels: Dict[int, discord.TextChannel] = {}
+
+	@classmethod
+	def get_guild_saved_urls(cls, ctx: Union[discord.ApplicationContext, LightContext, discord.AutocompleteContext]) -> Dict[str, str]:
+		guild_id = ctx.interaction.guild.id if isinstance(ctx, discord.AutocompleteContext) else ctx.guild.id
+
+		if guild_id not in cls.saved_urls:
+			cls.saved_urls[guild_id] = {}
+
+		return cls.saved_urls[guild_id]
 
 	@classmethod
 	def prepare_path(cls) -> None:
@@ -323,8 +333,9 @@ class Storage:
 	@classmethod
 	async def save_urls(cls) -> None:
 		cls.prepare_path()
+		saved_urls = {str(guild_id): urls_data for guild_id, urls_data in cls.saved_urls.items()}
 		with open(cls._saved_urls_path, 'w', encoding='utf-8') as file:
-			file.write(json.dumps(cls.saved_urls, indent=4, ensure_ascii=False))
+			file.write(json.dumps(saved_urls, indent=4, ensure_ascii=False))
 
 	@classmethod
 	async def save_audio_cache(cls) -> None:
@@ -346,7 +357,11 @@ class Storage:
 
 		try:
 			with open(cls._saved_urls_path, 'r', encoding='utf-8') as file:
-				cls.saved_urls = json.load(file)
+				raw_saved_urls = json.load(file)
+				cls.saved_urls = {
+					int(guild_id): urls_data
+					for guild_id, urls_data in raw_saved_urls.items()
+				}
 		except Exception as e:
 			print(f'Ошибка при загрузке сохраненных ссылок из файла {cls._saved_urls_path}: {e}')
 

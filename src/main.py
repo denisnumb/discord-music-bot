@@ -150,9 +150,11 @@ async def _play(
 async def _clear_music_cache(ctx: discord.ApplicationContext, url_or_name: Option(str, 'Ссылка или название (не указывать, если нужно очистить все)', required=False, default=None)):
 	if url_or_name:
 		if not url_or_name.startswith('http'):
-			if url_or_name not in Storage.saved_urls:
+			saved_urls = Storage.get_guild_saved_urls(ctx)
+
+			if url_or_name not in saved_urls:
 				return await ctx.respond(embed=discord.Embed(description=f'{ctx.author.mention}, трека с указанным названием нет в списке `/tracklist`. Укажите прямую ссылку', colour=discord.Color.red()), delete_after=15)
-			url_or_name = Storage.saved_urls[url_or_name]
+			url_or_name = saved_urls[url_or_name]
 		
 		if url_or_name not in Storage.audio_cache:
 			return await ctx.respond(embed=discord.Embed(description=f'{ctx.author.mention}, ссылка не содержится в кэше ({url_or_name})', colour=discord.Color.red()), delete_after=15)
@@ -174,8 +176,10 @@ async def _add_track(ctx: discord.ApplicationContext, url: Option(str, "Ссыл
 	dj_channel = Storage.dj_channels[ctx.guild.id]
 	message: discord.Message = None
 
-	if name in Storage.saved_urls:
-		return await ctx.send(embed=discord.Embed(description=f'{ctx.author.mention}, название `{name}` уже используется для трека или плейлиста: {Storage.saved_urls[name]}', colour=discord.Color.red()), delete_after=15)
+	saved_urls = Storage.get_guild_saved_urls(ctx)
+
+	if name in saved_urls:
+		return await ctx.send(embed=discord.Embed(description=f'{ctx.author.mention}, название `{name}` уже используется для трека или плейлиста: {saved_urls[name]}', colour=discord.Color.red()), delete_after=15)
 		
 	if not url.startswith('http'):
 		return await ctx.send(embed=discord.Embed(description=f'{ctx.author.mention}, укажите ссылку', colour=discord.Color.red()), delete_after=15)
@@ -196,7 +200,7 @@ async def _add_track(ctx: discord.ApplicationContext, url: Option(str, "Ссыл
 	else:
 		await dj_channel.send(embed=discord.Embed(description=f'{ctx.author.mention} добавляет название "**{name}**" для трека\n\n**{play_object.title}**\n\n{url} ', colour=discord.Color.orange()))
 		
-	Storage.saved_urls[name] = url
+	saved_urls[name] = url
 	await Storage.save_urls()
 
 @bot.slash_command(name='next', description='Переход на следующий трек', guild_ids=guild_ids)
@@ -223,20 +227,24 @@ async def _stop(ctx: discord.ApplicationContext):
 async def _remove_track(ctx: discord.ApplicationContext, name: Option(str, "Название быстрого запуска", required=True, autocomplete=get_tracknames)):
 	await ctx.delete()
 	
-	if name not in Storage.saved_urls:
+	saved_urls = Storage.get_guild_saved_urls(ctx)
+
+	if name not in saved_urls:
 		return await ctx.send(embed=discord.Embed(description=f'{ctx.author.mention}, указанный трек не найден', colour=discord.Color.red()), delete_after=5)
 
-	Storage.saved_urls.pop(name)
+	saved_urls.pop(name)
 	await Storage.save_urls()
 	await ctx.send(embed = discord.Embed(description=f'{ctx.author.mention}, сохраненная ссылка "*{name}*" удалена', colour=discord.Color.green()))
 	
 
 @bot.slash_command(name='get_track_names', description='Возвращает все названия для указанного трека', guild_ids=guild_ids)
 async def _get_names(ctx: discord.ApplicationContext, url_or_name: Option(str, "Ссылка или название сохраненного трека", required=True, autocomplete=get_tracknames)):
-	if url_or_name in Storage.saved_urls:
-		url_or_name = Storage.saved_urls[url_or_name]
+	saved_urls = Storage.get_guild_saved_urls(ctx)
 	
-	names = [name for name in Storage.saved_urls if Storage.saved_urls[name] == url_or_name]
+	if url_or_name in saved_urls:
+		url_or_name = saved_urls[url_or_name]
+	
+	names = [name for name in saved_urls if saved_urls[name] == url_or_name]
 	
 	if not names:
 		return await ctx.respond(embed=discord.Embed(description=f'{ctx.author.mention}, для указанной ссылки нет названий для быстрого запуска', colour=discord.Color.red()), delete_after=5)
@@ -244,10 +252,11 @@ async def _get_names(ctx: discord.ApplicationContext, url_or_name: Option(str, "
 
 @bot.slash_command(name='tracklist', description='Возвращает таблицу сохраненных треков для dj-bot', guild_ids=guild_ids)
 async def _tracklist(ctx: discord.ApplicationContext):
-	links = {link for link in Storage.saved_urls.values()}
+	saved_urls = Storage.get_guild_saved_urls(ctx)
+	links = {link for link in saved_urls.values()}
 
 	if not links:
-		await ctx.respond(f'{ctx.author.mention}, сохраненные треки не найдены. Используйте команду `/play_save` для добавления сохранения')
+		return await ctx.respond(f'{ctx.author.mention}, сохраненные треки не найдены. Используйте команду `/play_save` для сохранения', ephemeral=True, delete_after=15)
 
 	msg_text = f'{ctx.author.mention}, пожалуйста подождите, выполняется запрос данных...'
 	await ctx.respond(msg_text, delete_after=5)
@@ -263,7 +272,7 @@ async def _tracklist(ctx: discord.ApplicationContext):
 	msg += f'{s}  Название\n\n'
 
 	for url in links:
-		names = [key for key in Storage.saved_urls if Storage.saved_urls[key] == url]
+		names = [key for key in saved_urls if saved_urls[key] == url]
 		title = get_video_title(url)
 		while len(title) < maxlen:
 			title += ' '

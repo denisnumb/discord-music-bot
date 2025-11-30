@@ -29,10 +29,10 @@ async def try_connect(ctx: Union[discord.ApplicationContext, LightContext]) -> b
 	try:
 		get_music_client(ctx.guild).voice_client = await ctx.author.voice.channel.connect()
 		return True
-	except Exception:
+	except Exception as e:
 		mc = get_music_client(ctx.guild)
 		await mc.reset(force=True)
-		await ctx.send(embed=discord.Embed(description=f'{ctx.author.mention}, не удалось подключиться к голосовому каналу!', colour=discord.Color.red()), delete_after=60)
+		await ctx.send(embed=discord.Embed(description=f'{ctx.author.mention}, не удалось подключиться к голосовому каналу! {e}', colour=discord.Color.red()), delete_after=60)
 		return False
 
 async def add_tracks_to_queue(
@@ -151,17 +151,17 @@ async def play_from_message(message: discord.Message):
 
 	call_play_list = len(args) + len(audio_files) > 1
 	
-	if audio_files or message.content.startswith('http') or message.content in Storage.saved_urls or call_play_list:
-		if call_play_list or is_playlist_url(parse_video_url(message.content)):
+	ctx = LightContext(message.author, message.channel, message.guild)
+	mc = get_music_client(ctx.guild)
+
+	if audio_files or message.content.startswith('http') or message.content in Storage.get_guild_saved_urls(ctx) or call_play_list:
+		if call_play_list or is_playlist_url(parse_video_url(ctx, message.content)):
 			mix = await ask_to_mix_request(message)
 	elif not await ask_to_find_video(message):
 		return
 
-	ctx = LightContext(message.author, message.channel, message.guild)
-	mc = get_music_client(ctx.guild)
-
 	if mc.is_playing_or_paused and mc.track_index < len(mc.queue)-1:
-		request = await prepare_request(message.content, audio_files)
+		request = await prepare_request(ctx, message.content, audio_files)
 		play_option = await choice_play_option(message, request)
 		if play_option == AddTrackTypes.CANCEL:
 			return
@@ -202,7 +202,7 @@ async def play_list(
 	mix: bool, 
 	mix_with_queue: bool
 	) -> None:
-	args = [parse_video_url(x.strip()) for x in urls_or_names.split(',') if x]
+	args = [parse_video_url(ctx, x.strip()) for x in urls_or_names.split(',') if x]
 	args_without_empty = [arg for arg in args if arg]
 	
 	if len(args_without_empty) == 1 and not files:
@@ -279,7 +279,7 @@ async def play(
 	if len([x for x in url_or_name.split(',') if x]) > 1:
 		return await play_list(ctx, url_or_name, insert, mix, mix_with_queue)
 
-	track_url = parse_video_url(url_or_name)
+	track_url = parse_video_url(ctx, url_or_name)
 	if not track_url:
 		return await send_load_video_error(ctx, url_or_name)
 
@@ -300,7 +300,8 @@ async def play(
 		await add_tracks_to_queue(mc, play_object, insert, mix_with_queue)
 
 	message_text, embed_color = await get_embed_data(mc, insert, mix_with_queue, get_data_type(isinstance(play_object, Playlist)))
-	quick_start_names = [name for name in Storage.saved_urls if Storage.saved_urls[name] == play_object.url]
+	saved_urls = Storage.get_guild_saved_urls(ctx)
+	quick_start_names = [name for name in saved_urls if saved_urls[name] == play_object.url]
 	quick_start = '' if not quick_start_names else f'\n\nБыстрый запуск: {" / ".join(quick_start_names)}'
 	data_title = f'[{play_object.title}]({play_object.url})'
 	await play_message.edit(embed=discord.Embed(description=f'{ctx.author.mention} {message_text}\n\n**{data_title}**{quick_start}', colour=embed_color))

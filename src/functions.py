@@ -11,7 +11,8 @@ from model import (
 	TrackFile, 
     Playlist, 
     ErrorPlayArgument,
-    YDL_OPTIONS
+    YDL_OPTIONS,
+	LightContext
 )
 
 
@@ -22,7 +23,7 @@ def get_music_client(guild: discord.Guild) -> MusicClient:
 
 async def get_tracknames(ctx) -> Set[str]:
 	key = ctx.options.get('name') or ctx.options.get('url_or_name')
-	return {name for name in list(Storage.saved_urls) if name.startswith(key)}
+	return {name for name in list(Storage.get_guild_saved_urls(ctx)) if name.startswith(key)}
 
 def get_data_type(is_playlist: bool) -> str:
 	return PlayEmbedTypes.PLAYLIST if is_playlist else PlayEmbedTypes.VIDEO
@@ -44,13 +45,13 @@ async def send_load_video_error(ctx, video_url: str, loading_message=None) -> No
 	await ctx.send(embed=discord.Embed(description=f'{ctx.author.mention}, не удалось получить данные для {arg_data}!', colour=discord.Color.red()), delete_after=60)
 
 
-async def prepare_request(message_content: str, audio_files: List[TrackFile]) -> str:
+async def prepare_request(ctx: Union[discord.ApplicationContext, LightContext], message_content: str, audio_files: List[TrackFile]) -> str:
 	request = message_content
 	filenames = ', '.join(file.title for file in audio_files)
 
 	if not request or request.isspace():
 		return filenames
-	if (play_object := Storage.audio_cache.get(Storage.saved_urls.get(request) or request)):
+	if (play_object := Storage.audio_cache.get(Storage.get_guild_saved_urls(ctx).get(request) or request)):
 		request = play_object.title
 	if audio_files:
 		request += f' и {filenames}'
@@ -64,21 +65,11 @@ def is_playlist_url(url: str) -> bool:
 		return not 'track' in url
 	return any(map(lambda x: x in url, ('/playlist', '/channel', '@', '/videos'))) or any(map(lambda x: url.endswith(x), ('/videos', '/shorts')))
 
-def parse_video_url(url_or_name: str) -> str:
-	if url_or_name in Storage.saved_urls:
-		return Storage.saved_urls[url_or_name]
-	elif not url_or_name.startswith('http') and not url_or_name.isspace():
-		with YoutubeDL(YDL_OPTIONS) as ydl:
-			info = ydl.extract_info(f'ytsearch:{url_or_name}', download=False)
-		return 'https://youtu.be/' + info['entries'][0]['id'] if (info and info['entries']) else ErrorPlayArgument(url_or_name)
+def parse_video_url(ctx: Union[discord.ApplicationContext, LightContext], url_or_name: str) -> str:
+	saved_urls = Storage.get_guild_saved_urls(ctx)
 	
-	if any(map(lambda x: x in url_or_name, ('&start_radio=', '&index='))):
-		url_or_name = url_or_name.split('&list=')[0]
-	return url_or_name
-
-def parse_video_url(url_or_name: str) -> str:
-	if url_or_name in Storage.saved_urls:
-		return Storage.saved_urls[url_or_name]
+	if url_or_name in saved_urls:
+		return saved_urls[url_or_name]
 	elif not url_or_name.startswith('http') and url_or_name and not url_or_name.isspace():
 		with YoutubeDL(YDL_OPTIONS) as ydl:
 			info = ydl.extract_info(f'ytsearch:{url_or_name}', download=False)
