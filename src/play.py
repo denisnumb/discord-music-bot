@@ -243,7 +243,7 @@ async def play_list(
 		await play_list_message.edit(embed=discord.Embed(description=f'{ctx.author.mention} {message_text}\n\n*({translate(LocaleKeys.Label.names_and_tracks_loading)})* **[{i}/{entries_count}]**{quick_start}', colour=discord.Color.default()))
 	
 	for i, file in enumerate(files, 1):
-		track_titles.append(f'{file.title} *(Файл)*')
+		track_titles.append(f'{file.title} *({translate(LocaleKeys.Label.file).title()})*')
 		temp_queue.append(file)
 		await play_list_message.edit(embed=discord.Embed(description=f'{ctx.author.mention} {message_text}\n\n*({translate(LocaleKeys.Label.names_and_tracks_loading)})* **[{i+len(args)}/{entries_count}]**{quick_start}', colour=discord.Color.default()))
 
