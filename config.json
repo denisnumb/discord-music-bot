@@ -1,5 +1,6 @@
 {
     "token": "",
     "guild_ids": [],
-    "playlistend": 100
+    "playlistend": 100,
+    "locale": "en_us"
 }
