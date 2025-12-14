@@ -75,7 +75,7 @@ class Storage:
 					for guild_id, urls_data in raw_saved_urls.items()
 				}
 		except Exception as e:
-			print(f'Ошибка при загрузке сохраненных ссылок из файла {cls._saved_urls_path}: {e}')
+			print(f'Error loading saved urls from file {cls._saved_urls_path}: {e}')
 
 	@classmethod
 	async def load_audio_cache(cls) -> None:
@@ -96,7 +96,7 @@ class Storage:
 					entries=[Track(**track_data) for track_data in data.get('entries')]
 				)
 		except Exception as e:
-			print(f'Ошибка при загрузке кэша из файла {cls._audio_cache_path}: {e}')
+			print(f'Error loading url cache from file {cls._audio_cache_path}: {e}')
 
 	@classmethod
 	async def load_dj_channels(cls, bot: discord.Bot) -> None:
@@ -110,4 +110,4 @@ class Storage:
 				for guild_id, channel_id in raw_dj_channels.items()
 			}	
 		except Exception as e:
-			print(f'Ошибка при загрузке кэша из файла {cls._audio_cache_path}: {e}')
+			print(f'Error loading dj channels from file {cls._dj_channels_path}: {e}')

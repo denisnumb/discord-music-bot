@@ -9,6 +9,7 @@ class Config:
     token: str = ''
     guild_ids: List[int] = []
     playlistend: int = 100
+    locale: str = 'en_us'
 
     @classmethod
     def load_config(cls):
@@ -17,3 +18,4 @@ class Config:
             cls.token = data['token']
             cls.guild_ids = data['guild_ids']
             cls.playlistend = data['playlistend']
+            cls.locale = data['locale']

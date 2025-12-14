@@ -5,6 +5,7 @@ from urllib.request import urlopen
 from urllib.error import HTTPError
 from typing import List, Union
 from discord.ui import View, Button
+from locale_provider import LocaleKeys, translate
 from model import (
 	LightContext, 
 	Track, 
@@ -54,7 +55,7 @@ class MusicClient:
 		if self.track_index + 1 >= len(self.queue):
 			self.track_index = -1
 		self.voice_client.stop()
-		await self.channel.send(embed=discord.Embed(description=f'{user.mention} переключает трек ⏩', colour=discord.Color.gold()), delete_after=60)
+		await self.channel.send(embed=discord.Embed(description=translate(LocaleKeys.Info.user_play_next, user.mention), colour=discord.Color.gold()), delete_after=60)
 
 	async def previous(self, user: discord.Member) -> None:
 		if not self.__voice_channels_are_equal(user):
@@ -63,7 +64,7 @@ class MusicClient:
 		if self.track_index < -1:
 			self.track_index = -1
 		self.voice_client.stop()
-		await self.channel.send(embed=discord.Embed(description=f'{user.mention} переключает трек ⏪', colour=discord.Color.gold()), delete_after=60)
+		await self.channel.send(embed=discord.Embed(description=translate(LocaleKeys.Info.user_play_prev, user.mention), colour=discord.Color.gold()), delete_after=60)
 
 	async def pause(self, user: discord.Member) -> bool:
 		if not self.__voice_channels_are_equal(user):
@@ -76,7 +77,7 @@ class MusicClient:
 		if not self.__voice_channels_are_equal(user):
 			return False
 		await self.reset()
-		await self.channel.send(embed=discord.Embed(description=f'{user.mention} отключил бота от голосового канала ❌', colour=discord.Color.red()))
+		await self.channel.send(embed=discord.Embed(description=translate(LocaleKeys.Info.user_play_stop, user.mention), colour=discord.Color.red()))
 
 	async def _prepare_sound_source(self) -> str:
 		current_track = self.queue[self.track_index]
@@ -108,7 +109,7 @@ class MusicClient:
 				sound_source = await self._prepare_sound_source()
 				self.voice_client.play(discord.FFmpegPCMAudio(source=sound_source, **FFMPEG_OPTIONS))
 			except Exception:
-				await self.channel.send(embed=discord.Embed(description=f'При попытке воспроизведения трека возникла ошибка!', colour=discord.Color.red()), delete_after=10)
+				await self.channel.send(embed=discord.Embed(description=translate(LocaleKeys.Info.track_play_error), colour=discord.Color.red()), delete_after=10)
 				excepted += 1
 				self.voice_client.stop()
 
@@ -175,12 +176,12 @@ class MessagePlayer:
 		this_track_info = self.get_track_link_title(queue[track_index])
 		next_track_info = (
 			self.get_track_link_title(queue[track_index+1]) 
-			if track_index+1 < len(queue) else '*Конец очереди*'
+			if track_index+1 < len(queue) else translate(LocaleKeys.Label.end_of_queue)
 		)
 		
 		self.__message = await self.music_client.channel.send(
 			embed=discord.Embed(
-				description=f'**Сейчас играет: {this_track_info}**\nСледующий трек: {next_track_info}',
+				description=translate(LocaleKeys.Label.music_player_info, this_track_info, next_track_info),
 				colour=discord.Color.from_rgb(0, 239, 255)
 				), 
 			view=MessagePlayerView(self.music_client)

@@ -5,6 +5,7 @@ from yt_dlp import YoutubeDL
 from storage import Storage
 from music_client import MusicClient
 from views import ChoicePlayOptionView
+from locale_provider import LocaleKeys, translate
 from model import (
 	Track,
 	TrackFile,
@@ -35,7 +36,7 @@ async def try_connect(ctx: Union[discord.ApplicationContext, LightContext]) -> b
 	except Exception as e:
 		mc = get_music_client(ctx.guild)
 		await mc.reset(force=True)
-		await ctx.send(embed=discord.Embed(description=f'{ctx.author.mention}, не удалось подключиться к голосовому каналу! {e}', colour=discord.Color.red()), delete_after=60)
+		await ctx.send(embed=discord.Embed(description=translate(LocaleKeys.Info.join_channel_error, ctx.author.mention), colour=discord.Color.red()), delete_after=60)
 		return False
 
 async def add_tracks_to_queue(
@@ -77,7 +78,7 @@ def create_play_object(yt_dlp_data: dict) -> Union[Track, Playlist]:
 		entries = entries[0].get('entries')
 
 	if len(entries) == 0:
-		raise ValueError(f'По данной ссылке нечего проигрывать')
+		raise ValueError(f'No play source by url')
 
 	playlist_entries = [
 		Track(
@@ -99,7 +100,7 @@ def create_play_object_wrapper(url: str) -> Union[Track, Playlist] | None:
 		try:
 			return create_play_object(ydl.extract_info(url, download=False))
 		except Exception as e:
-			print(f'Не удалось получить данные для ссылки [{url}]: {e}')
+			print(f'Can\'t get data for url [{url}]: {e}')
 
 async def get_play_object_by_url(url: str) -> Union[Track, Playlist] | None:
 	if url not in Storage.audio_cache:
@@ -118,7 +119,7 @@ async def get_play_object_by_url(url: str) -> Union[Track, Playlist] | None:
 async def choice_play_option(message: discord.Message, request: str) -> int:
 	view = ChoicePlayOptionView()
 	await message.channel.send(
-		f'{message.author.mention}, как добавить запрос `{request}` в очередь?', 
+		translate(LocaleKeys.Label.ask_how_add_query_to_queue, message.author.mention, request), 
 		view=view
 	)
 	return await view.wait_result()
@@ -126,14 +127,14 @@ async def choice_play_option(message: discord.Message, request: str) -> int:
 async def ask_to_mix_request(message: discord.Message):
 	return await ask_yes_no(
 		message.channel, 
-		f'{message.author.mention}, перемешать треки в плейлисте?',
+		translate(LocaleKeys.Label.ask_mix_playlist, message.author.mention),
 		7
 	)
 
 async def ask_to_find_video(message: discord.Message):
 	return await ask_yes_no(
 		message.channel,
-		f'{message.author.mention}, выполнить поиск трека по запросу `{message.content}`?',
+		translate(LocaleKeys.Label.ask_find_track_by_query, message.author.mention, message.content),
 		10
 	)
 
@@ -216,9 +217,9 @@ async def play_list(
 	mc = get_music_client(ctx.guild)
 	dj_channel = Storage.dj_channels[ctx.guild.id]
 
-	quick_start = f'\n\nБыстрый запуск: {urls_or_names}' if urls_or_names else ''
+	quick_start = f'\n\n{translate(LocaleKeys.Label.quick_play)}: {urls_or_names}' if urls_or_names else ''
 	message_text, _ = await get_embed_data(mc, insert, mix_with_queue, PlayEmbedTypes.PLAY_LIST)
-	play_list_message = await dj_channel.send(embed=discord.Embed(description=f'{ctx.author.mention} {message_text}\n\n*(Названия и треки загружаются)*{quick_start}', colour=discord.Color.default()))
+	play_list_message = await dj_channel.send(embed=discord.Embed(description=f'{ctx.author.mention} {message_text}\n\n*({translate(LocaleKeys.Label.names_and_tracks_loading)})*{quick_start}', colour=discord.Color.default()))
 
 	entries_count = len(args) + len(files)
 	track_titles = []
@@ -232,24 +233,24 @@ async def play_list(
 			error_args.append(url)
 			continue
 
-		playlist_mark = '' if not isinstance(play_object, Playlist) else ' *(Плейлист)*'
+		playlist_mark = '' if not isinstance(play_object, Playlist) else f' *({translate(LocaleKeys.Label.playlist).title()})*'
 		track_titles.append(f'[{play_object.title}]({play_object.url}){playlist_mark}')
 		if isinstance(play_object, Playlist):
 			temp_queue += play_object.entries
 		else:
 			temp_queue.append(play_object)
 
-		await play_list_message.edit(embed=discord.Embed(description=f'{ctx.author.mention} {message_text}\n\n*(Названия и треки загружаются)* **[{i}/{entries_count}]**{quick_start}', colour=discord.Color.default()))
+		await play_list_message.edit(embed=discord.Embed(description=f'{ctx.author.mention} {message_text}\n\n*({translate(LocaleKeys.Label.names_and_tracks_loading)})* **[{i}/{entries_count}]**{quick_start}', colour=discord.Color.default()))
 	
 	for i, file in enumerate(files, 1):
 		track_titles.append(f'{file.title} *(Файл)*')
 		temp_queue.append(file)
-		await play_list_message.edit(embed=discord.Embed(description=f'{ctx.author.mention} {message_text}\n\n*(Названия и треки загружаются)* **[{i+len(args)}/{entries_count}]**{quick_start}', colour=discord.Color.default()))
+		await play_list_message.edit(embed=discord.Embed(description=f'{ctx.author.mention} {message_text}\n\n*({translate(LocaleKeys.Label.names_and_tracks_loading)})* **[{i+len(args)}/{entries_count}]**{quick_start}', colour=discord.Color.default()))
 
 	if len(error_args) > 0:
-		await ctx.send(embed=discord.Embed(description=f'{ctx.author.mention}, возникла ошибка при получении данных для:\n\n**{nl.join(error_args)}**', colour=discord.Color.red()), delete_after=60)
+		await ctx.send(embed=discord.Embed(description=translate(LocaleKeys.Info.cant_get_data_for_list, ctx.author.mention, nl.join(error_args)), colour=discord.Color.red()), delete_after=60)
 	if len(track_titles) == 0:
-		await ctx.send(embed=discord.Embed(description=f'{ctx.author.mention}, не удалось получить трек ни из одного из указанных значений', colour=discord.Color.red()), delete_after=10)
+		await ctx.send(embed=discord.Embed(description=translate(LocaleKeys.Info.cant_get_data_for_everyone, ctx.author.mention), colour=discord.Color.red()), delete_after=10)
 		return await play_list_message.delete()
 
 	if mix:
@@ -288,7 +289,7 @@ async def play(
 
 	is_playlist = is_playlist_url(track_url)
 	message_text, _ = await get_embed_data(mc, insert, mix_with_queue, get_data_type(is_playlist))
-	play_message = await dj_channel.send(embed=discord.Embed(description=f'{ctx.author.mention} {message_text}\n\n*(Загрузка займет некоторое время)*', colour=discord.Color.default()))
+	play_message = await dj_channel.send(embed=discord.Embed(description=f'{ctx.author.mention} {message_text}\n\n*({translate(LocaleKeys.Label.loading_take_some_time)})*', colour=discord.Color.default()))
 	
 	play_object = await get_play_object_by_url(track_url)
 	if not play_object:
@@ -305,7 +306,7 @@ async def play(
 	message_text, embed_color = await get_embed_data(mc, insert, mix_with_queue, get_data_type(isinstance(play_object, Playlist)))
 	saved_urls = Storage.get_guild_saved_urls(ctx)
 	quick_start_names = [name for name in saved_urls if saved_urls[name] == play_object.url]
-	quick_start = '' if not quick_start_names else f'\n\nБыстрый запуск: {" / ".join(quick_start_names)}'
+	quick_start = '' if not quick_start_names else f'\n\n{translate(LocaleKeys.Label.quick_play)}: {" / ".join(quick_start_names)}'
 	data_title = f'[{play_object.title}]({play_object.url})'
 	await play_message.edit(embed=discord.Embed(description=f'{ctx.author.mention} {message_text}\n\n**{data_title}**{quick_start}', colour=embed_color))
 

@@ -2,28 +2,29 @@ import discord
 import asyncio
 from discord.ui import View, Button
 from model import AddTrackTypes
+from locale_provider import LocaleKeys, translate
 
 
 class ChoicePlayOptionView(View):
 	def __init__(self, timeout: int=15):
 		add_button = Button(
 			custom_id=str(AddTrackTypes.ADD),
-			label='Добавить в очередь', 
+			label=translate(LocaleKeys.Label.add_query_to_queue), 
 			style=discord.ButtonStyle.green
 		)
 		insert_button = Button(
 			custom_id=str(AddTrackTypes.INSERT),
-			label='Добавить вне очереди', 
+			label=translate(LocaleKeys.Label.insert_query), 
 			style=discord.ButtonStyle.green
 		)
 		mix_with_queue_button = Button(
 			custom_id=str(AddTrackTypes.MIX_WITH_QUEUE),
-			label='Перемешать с другими треками в очереди', 
+			label=translate(LocaleKeys.Label.mix_query_with_queue), 
 			style=discord.ButtonStyle.green
 		)
 		cancel_button = Button(
 			custom_id=str(AddTrackTypes.CANCEL),
-			label='Отмена', 
+			label=translate(LocaleKeys.Label.cancel), 
 			style=discord.ButtonStyle.red
 		)
 		self.result = None
@@ -47,8 +48,8 @@ class ChoicePlayOptionView(View):
 
 class AskYesNoView(View):
 	def __init__(self, timeout: int=60) -> None:
-		self.yes_button = Button(label='Да', style=discord.ButtonStyle.green)
-		self.no_button = Button(label='Нет', style=discord.ButtonStyle.red)
+		self.yes_button = Button(label=translate(LocaleKeys.Label.yes), style=discord.ButtonStyle.green)
+		self.no_button = Button(label=translate(LocaleKeys.Label.no), style=discord.ButtonStyle.red)
 		self.yes_button.callback = lambda _: self.set_result(True)
 		self.no_button.callback = lambda _: self.set_result(False)
 		self.result = None

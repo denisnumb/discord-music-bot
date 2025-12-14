@@ -5,6 +5,8 @@ from discord.ext.commands import Converter
 from copy import deepcopy
 from typing import List
 from config import Config
+from locale_provider import LocaleKeys, translate
+
 
 YDL_OPTIONS = {
 	'format': 'bestaudio/best', 
@@ -21,10 +23,10 @@ FFMPEG_OPTIONS = {
 }
 
 class PlayEmbedTypes:
-	VIDEO = 'трек'
-	PLAYLIST = 'плейлист'
-	PLAY_LIST = 'список треков'
-	FILE = 'файл'
+	VIDEO = translate(LocaleKeys.Label.track)
+	PLAYLIST = translate(LocaleKeys.Label.playlist)
+	PLAY_LIST = translate(LocaleKeys.Label.track_list)
+	FILE = translate(LocaleKeys.Label.file)
 
 class AddTrackTypes:
 	ADD = 0
@@ -37,11 +39,11 @@ class CustomBoolArgument(Converter):
         return arg == cls.choices[0]
 
 class PlayInsertArg(CustomBoolArgument):
-    choices = ('Воспроизвести трек/плейлист следующим (вне очереди)', 'Добавить трек/плейлист в очередь')
+    choices = (translate(LocaleKeys.Label.insert), translate(LocaleKeys.Label.not_insert))
 class PlayMixArg(CustomBoolArgument):
-    choices = ('Перемешать треки между собой', )
+    choices = (translate(LocaleKeys.Label.mix), )
 class PlayMixWithQueueArg(CustomBoolArgument):
-	choices = ('Перемешать треки с другими треками в очереди', )
+	choices = (translate(LocaleKeys.Label.mix_with_queue), )
 
 class LoadingThread(Thread):
 	def __init__(self, target, args=(), kwargs={}) -> None:

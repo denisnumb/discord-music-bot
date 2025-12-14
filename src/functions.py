@@ -8,6 +8,7 @@ from typing import Union, Set, List
 from music_client import MusicClient
 from storage import Storage
 from views import AskYesNoView
+from locale_provider import LocaleKeys, translate
 from model import (
     PlayEmbedTypes,
 	TrackFile, 
@@ -33,18 +34,18 @@ def get_data_type(is_playlist: bool) -> str:
 async def get_embed_data(music_client: MusicClient, insert: bool, mix_with_queue: bool, data_type: str) -> str:
 	if music_client.is_playing_or_paused:
 		if insert and not mix_with_queue:
-			return f'добавляет вне очереди {data_type}', discord.Color.purple()
+			return translate(LocaleKeys.Info.user_insert, data_type), discord.Color.purple()
 		elif mix_with_queue:
-			return f'перемешивает с очередью {data_type}', discord.Color.gold()
+			return translate(LocaleKeys.Info.user_mix_with_queue, data_type), discord.Color.gold()
 		else:
-			return f'добавляет в очередь {data_type}', discord.Color.gold()
-	return f'включает {data_type}', discord.Color.green()
+			return translate(LocaleKeys.Info.user_adds, data_type), discord.Color.gold()
+	return translate(LocaleKeys.Info.user_play, data_type), discord.Color.green()
 
 async def send_load_video_error(ctx, video_url: str, loading_message=None) -> None:
 	if loading_message:
 		await delete_message(loading_message)
-	arg_data = f'[**трека**]({video_url})' if video_url.startswith('http') else f'`{video_url}`'
-	await ctx.send(embed=discord.Embed(description=f'{ctx.author.mention}, не удалось получить данные для {arg_data}!', colour=discord.Color.red()), delete_after=60)
+	arg_data = translate(LocaleKeys.Label.for_track, video_url) if video_url.startswith('http') else f'`{video_url}`'
+	await ctx.send(embed=discord.Embed(description=translate(LocaleKeys.Info.cant_get_data_for, ctx.author.mention, arg_data), colour=discord.Color.red()), delete_after=60)
 
 
 async def prepare_request(ctx: Union[discord.ApplicationContext, LightContext], message_content: str, audio_files: List[TrackFile]) -> str:
@@ -56,7 +57,7 @@ async def prepare_request(ctx: Union[discord.ApplicationContext, LightContext], 
 	if (play_object := Storage.audio_cache.get(Storage.get_guild_saved_urls(ctx).get(request) or request)):
 		request = play_object.title
 	if audio_files:
-		request += f' и {filenames}'
+		request += f' {translate(LocaleKeys.Label.and_)} {filenames}'
 	
 	return request
 
@@ -101,7 +102,7 @@ def prepare_url(url: str) -> str:
 def get_video_title(url: str) -> str:
 	if is_playlist_url(url):
 		if url in Storage.audio_cache:
-			return f'{Storage.audio_cache[url].title} (Плейлист)'
+			return f'{Storage.audio_cache[url].title} ({translate(LocaleKeys.Label.playlist).title()})'
 		return url
 	try:
 		pattern = r'(?:https?:\/\/)?(?:[0-9A-Z-]+\.)?(?:youtube|youtu|youtube-nocookie)\.(?:com|be)\/(?:watch\?v=|watch\?.+&v=|embed\/|v\/|.+\?v=)?([^&=\n%\?]{11})'
@@ -117,7 +118,7 @@ def get_video_title(url: str) -> str:
 
 		return data['title']
 	except:
-		return 'Не удалось получить название :('
+		return translate(LocaleKeys.Info.cant_get_title)
 
 async def ask_yes_no(channel: discord.TextChannel, question: str, timeout: int=60):
 	view = AskYesNoView(timeout)
@@ -132,4 +133,4 @@ async def delete_message(message: Union[discord.Message, discord.Interaction], t
 			return await message.delete_original_response(delay=timeout)
 		await message.delete(delay=timeout)
 	except Exception as e:
-		print(f'Ошибка при удалении сообщения: {e}')
+		print(f'Message delete error: {e}')
