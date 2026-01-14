@@ -108,6 +108,7 @@ async def update_yt_dlp_task() -> str | None:
 )
 @discord.default_permissions(manage_guild=True)
 async def update_yt_dlp_cmd(ctx: discord.ApplicationContext) -> None:
+	await ctx.defer()
 	update_result = await update_yt_dlp_task.__call__()
 	await ctx.respond(update_result, ephemeral=True, delete_after=30)
 
