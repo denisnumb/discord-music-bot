@@ -3,18 +3,17 @@ import json
 import discord
 from urllib.request import urlopen
 from urllib.parse import urlencode
-from yt_dlp import YoutubeDL
 from typing import Union, Set, List
 from music_client import MusicClient
 from storage import Storage
 from views import AskYesNoView
 from locale_provider import LocaleKeys, translate
+from query_parser import yt_dlp_extract_info
 from model import (
     PlayEmbedTypes,
 	TrackFile, 
     Playlist, 
     ErrorPlayArgument,
-    YDL_OPTIONS,
 	LightContext
 )
 
@@ -74,8 +73,7 @@ def parse_video_url(ctx: Union[discord.ApplicationContext, LightContext], url_or
 	if url_or_name in saved_urls:
 		return saved_urls[url_or_name]
 	elif not url_or_name.startswith('http') and url_or_name and not url_or_name.isspace():
-		with YoutubeDL(YDL_OPTIONS) as ydl:
-			info = ydl.extract_info(f'ytsearch:{url_or_name}', download=False)
+		info = yt_dlp_extract_info(f'ytsearch:{url_or_name}')
 		return 'https://youtu.be/' + info['entries'][0]['id'] if (info and info['entries']) else ErrorPlayArgument(url_or_name)
 	return prepare_url(url_or_name)
 

@@ -1,16 +1,15 @@
 import discord
 import asyncio
-from yt_dlp import YoutubeDL
 from urllib.request import urlopen
 from urllib.error import HTTPError
 from typing import List, Union
 from discord.ui import View, Button
 from locale_provider import LocaleKeys, translate
+from query_parser import yt_dlp_extract_info
 from model import (
 	LightContext, 
 	Track, 
 	TrackFile, 
-	YDL_OPTIONS, 
 	FFMPEG_OPTIONS
 )
 from model import (
@@ -88,9 +87,9 @@ class MusicClient:
 			urlopen(sound_source)
 		except (HTTPError, AttributeError):
 			if not isinstance(current_track, TrackFile):
-				with YoutubeDL(YDL_OPTIONS) as ydl:
-					sound_source = ydl.extract_info(current_track.url, download=False)['url']
-					current_track.source = sound_source
+				sound_source = yt_dlp_extract_info(current_track.url)
+				if sound_source and 'url' in sound_source:
+					current_track.source = sound_source['url']
 
 		return sound_source
 

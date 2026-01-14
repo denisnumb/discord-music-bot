@@ -4,18 +4,8 @@ from threading import Thread
 from discord.ext.commands import Converter
 from copy import deepcopy
 from typing import List
-from config import Config
 from locale_provider import LocaleKeys, translate
 
-
-YDL_OPTIONS = {
-	'format': 'bestaudio/best', 
-	'forcetitle': True, 
-	'quiet': True, 
-	'playlistend': Config.playlistend, 
-	'cookiefile': 'data/cookies.txt', 
-	'ignoreerrors': True
-}
 
 FFMPEG_OPTIONS = {
 	'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5', 
