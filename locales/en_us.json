@@ -61,6 +61,8 @@
     "label.yes": "Yes",
     "label.no": "No",
 
+    "cmd.update_yt_dlp.desc": "Updates the yt-dlp library",
+
     "cmd.set_dj_channel.desc": "Sets a channel on the server to play music",
     "cmd.set_dj_channel.channel": "Channel for playing music",
 

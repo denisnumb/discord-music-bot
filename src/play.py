@@ -6,6 +6,7 @@ from storage import Storage
 from music_client import MusicClient
 from views import ChoicePlayOptionView
 from locale_provider import LocaleKeys, translate
+from query_parser import yt_dlp_extract_info
 from model import (
 	Track,
 	TrackFile,
@@ -13,7 +14,6 @@ from model import (
 	LightContext,
 	AddTrackTypes,
 	PlayEmbedTypes,
-	YDL_OPTIONS,
 	LoadingThread
 )
 from functions import (
@@ -96,11 +96,10 @@ def create_play_object(yt_dlp_data: dict) -> Union[Track, Playlist]:
 	)
 
 def create_play_object_wrapper(url: str) -> Union[Track, Playlist] | None:
-	with YoutubeDL(YDL_OPTIONS) as ydl:
-		try:
-			return create_play_object(ydl.extract_info(url, download=False))
-		except Exception as e:
-			print(f'Can\'t get data for url [{url}]: {e}')
+	try:
+		return create_play_object(yt_dlp_extract_info(url))
+	except Exception as e:
+		print(f'Can\'t get data for url [{url}]: {e}')
 
 async def get_play_object_by_url(url: str) -> Union[Track, Playlist] | None:
 	if url not in Storage.audio_cache:

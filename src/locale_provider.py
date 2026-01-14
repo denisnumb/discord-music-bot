@@ -92,6 +92,9 @@ class LocaleKeys:
 		no = 'label.no'
 
 	class Cmd:
+		class UpdateYtDlp:
+			desc = 'cmd.update_yt_dlp.desc'
+
 		class SetDjChannel:
 			desc = 'cmd.set_dj_channel.desc'
 			channel = 'cmd.set_dj_channel.channel'
