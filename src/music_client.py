@@ -88,10 +88,9 @@ class MusicClient:
 		except (HTTPError, AttributeError):
 			if not isinstance(current_track, TrackFile):
 				sound_source = yt_dlp_extract_info(current_track.url)
-				if sound_source and 'url' in sound_source:
-					current_track.source = sound_source['url']
+				current_track.source = sound_source.get('url') if sound_source else None
 
-		return sound_source
+		return current_track.source
 
 	async def play_music(self, ctx: Union[discord.ApplicationContext, LightContext]):
 		if self.is_started:
