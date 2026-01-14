@@ -6,7 +6,9 @@ Locale.init(Config.locale)
 
 import os
 import discord
+import subprocess
 from discord import Option
+from discord.ext import tasks
 from storage import Storage
 from model import (
 	TrackFile,
@@ -85,6 +87,30 @@ async def on_application_command_error(ctx: discord.ApplicationContext, error) -
 			), 
 		delete_after=10
 	)
+
+@tasks.loop(hours=24)
+async def update_yt_dlp_task() -> str | None:
+	proc = subprocess.run(
+		['pip', 'install', '-U', 'yt-dlp'],
+		stdout=subprocess.PIPE,
+		stderr=subprocess.PIPE,
+		text=True,
+	)
+
+	if proc.returncode == 0:
+		return [line for line in proc.stdout.split('\n') if line][-1]
+	return f'```cmd\n{proc.stderr[:1980]}\n```'
+
+@bot.slash_command(
+	name='update_yt_dlp',
+	description=translate(LocaleKeys.Cmd.UpdateYtDlp.desc),
+	guild_ids=guild_ids
+)
+@discord.default_permissions(manage_guild=True)
+async def update_yt_dlp_cmd(ctx: discord.ApplicationContext) -> None:
+	update_result = await update_yt_dlp_task.__call__()
+	await ctx.respond(update_result, ephemeral=True, delete_after=30)
+
 
 @bot.slash_command(
 	name='set_dj_channel', 
