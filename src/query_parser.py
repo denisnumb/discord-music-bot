@@ -6,7 +6,7 @@ from pathlib import Path
 
 def yt_dlp_extract_info(query: str) -> dict | None:
     proc = subprocess.run(
-        [sys.executable, Path().absolute(), query],
+        [sys.executable, Path(__file__).resolve(), query],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
