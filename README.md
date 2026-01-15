@@ -37,7 +37,7 @@ python src/main.py
 
 - 🐋 Run using docker:
 ```cmd
-docker compose up --build
+docker compose up -d --build
 ```
 
 ## 🎵 Usage example:
