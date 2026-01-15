@@ -51,6 +51,8 @@ async def on_ready() -> None:
 	await Storage.load_audio_cache()
 	await Storage.load_dj_channels(bot)
 
+	update_yt_dlp_task.start()
+
 	print('Bot started')
 
 
