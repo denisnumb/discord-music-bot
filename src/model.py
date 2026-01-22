@@ -88,7 +88,7 @@ class TrackFile(PlayObject):
 		self.file_object = file_object
 
 	async def save_temp(self, directory: Path) -> None:
-		temp_file_path = directory / f'{self.file_object.id}.{self.file_object.content_type.split("/")[-1]}'
+		temp_file_path = directory / f'{self.file_object.id}.{self.title.split(".")[-1]}'
 		await self.file_object.save(temp_file_path, use_cached=True)
 		self.source = temp_file_path
 

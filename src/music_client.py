@@ -3,7 +3,7 @@ import discord
 import asyncio
 from urllib.request import urlopen
 from urllib.error import HTTPError
-from typing import List, Union, Dict, Tuple
+from typing import List, Union, Dict
 from discord.ui import View, Button
 from locale_provider import LocaleKeys, translate
 from query_parser import yt_dlp_extract_info
@@ -17,7 +17,7 @@ from model import (
 )
 
 
-music_clients: Dict[int, MusicClient] = {}
+music_clients: Dict[int, 'MusicClient'] = {}
 
 class MusicClient:
 	def __init__(self, channel: discord.TextChannel=None) -> None:
