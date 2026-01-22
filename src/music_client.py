@@ -24,7 +24,6 @@ class MusicClient:
 		self.lock: asyncio.Lock = asyncio.Lock()
 		self.channel: discord.TextChannel = channel
 		self.voice_client: discord.VoiceClient = None
-		self.temp_audio_files: Dict[TrackFile, str] = {}
 		self.track_index: int = 0
 		self.message_player: MessagePlayer = MessagePlayer(self)
 		self.__started: bool = False
@@ -47,11 +46,7 @@ class MusicClient:
 	def queue(self) -> List[Union[Track, TrackFile]]:
 		return self.__queue.copy()
 
-	async def set_queue(self, new_queue: List[Union[Track, TrackFile]]) -> None:
-		for track in new_queue:
-			if isinstance(track, TrackFile):
-				await track.save_temp(Storage.temp_path())
-
+	def set_queue(self, new_queue: List[Union[Track, TrackFile]]) -> None:
 		self.__queue = new_queue
 
 	def start(self) -> None:
@@ -90,7 +85,7 @@ class MusicClient:
 		await self.reset()
 		await self.channel.send(embed=discord.Embed(description=translate(LocaleKeys.Info.user_play_stop, user.mention), colour=discord.Color.red()))
 
-	async def _prepare_sound_source(self) -> str:
+	async def _prepare_sound_source(self) -> discord.AudioSource:
 		current_track = self.queue[self.track_index]
 
 		if not isinstance(current_track, TrackFile):
@@ -100,7 +95,10 @@ class MusicClient:
 				sound_source = yt_dlp_extract_info(current_track.url)
 				current_track.source = sound_source.get('url') if sound_source else None
 
-		return current_track.source
+		return discord.FFmpegPCMAudio(
+			source=current_track.source,
+			**(FFMPEG_OPTIONS if not isinstance(current_track, TrackFile) else {})
+		)
 
 	async def play_music(self, ctx: Union[discord.ApplicationContext, LightContext]):
 		if self.is_started:
@@ -115,7 +113,7 @@ class MusicClient:
 
 			try:
 				sound_source = await self._prepare_sound_source()
-				self.voice_client.play(discord.FFmpegPCMAudio(source=sound_source, **FFMPEG_OPTIONS))
+				self.voice_client.play(sound_source)
 				excepted = 0
 			except:
 				await self.channel.send(embed=discord.Embed(description=translate(LocaleKeys.Info.track_play_error), colour=discord.Color.red()), delete_after=10)
@@ -147,10 +145,10 @@ class MusicClient:
 			self.voice_client.stop()
 			await self.voice_client.disconnect(force=force)
 
-		for file_path in self.temp_audio_files.values():
-			os.remove(file_path)
+		for item in Storage.temp_path().iterdir():
+			if item.is_file():
+				item.unlink()
 
-		self.temp_audio_files = {}
 		self.voice_client = None
 		self.track_index = 0
 		self.__started = False

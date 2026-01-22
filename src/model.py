@@ -84,7 +84,7 @@ class PlayObject:
 class TrackFile(PlayObject):
 	def __init__(self, file_object: discord.Attachment):
 		super().__init__(file_object.proxy_url, file_object.filename)
-		self.source = file_object.proxy_url
+		self.source = None
 		self.file_object = file_object
 
 	async def save_temp(self, directory: Path) -> None:

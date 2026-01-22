@@ -61,7 +61,6 @@ async def on_message(message: discord.Message) -> None:
 	if message.author == bot.user:
 		return
 	if message.channel in Storage.dj_channels.values():
-		await delete_message(message)
 		if message.author.voice:
 			await play_from_message(message)
 
