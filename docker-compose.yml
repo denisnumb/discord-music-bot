@@ -7,4 +7,5 @@ services:
     volumes:
       - ./config.json:/app/config.json
       - ./data:/app/data 
+      - ./temp:/app/temp
     restart: unless-stopped

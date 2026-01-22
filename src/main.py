@@ -164,8 +164,7 @@ async def _play(
 		return await ctx.respond(embed=discord.Embed(description=translate(LocaleKeys.Info.join_voice_channel, ctx.author.mention), colour=discord.Color.red()), ephemeral=True, delete_after=15)
 	
 	if file:
-		file = (None if not any(map(lambda x: x in file.content_type, ('audio', 'video')))
-			else TrackFile(file.url, file.filename))
+		file = (None if not any(map(lambda x: x in file.content_type, ('audio', 'video'))) else TrackFile(file))
 
 	if not any((url_or_name, file)):
 		return await ctx.respond(embed=discord.Embed(description=translate(LocaleKeys.Info.enter_url_name_or_file, ctx.author.mention), colour=discord.Color.red()), ephemeral=True, delete_after=15)

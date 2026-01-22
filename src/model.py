@@ -4,6 +4,7 @@ from threading import Thread
 from discord.ext.commands import Converter
 from copy import deepcopy
 from typing import List
+from pathlib import Path
 from locale_provider import LocaleKeys, translate
 
 
@@ -81,9 +82,16 @@ class PlayObject:
 		self.title = title
 
 class TrackFile(PlayObject):
-	def __init__(self, url: str, title: str):
-		super().__init__(url, title)
-		self.source = url
+	def __init__(self, file_object: discord.Attachment):
+		super().__init__(file_object.proxy_url, file_object.filename)
+		self.source = file_object.proxy_url
+		self.file_object = file_object
+
+	async def save_temp(self, directory: Path) -> None:
+		temp_file_path = directory / f'{self.file_object.id}.{self.file_object.content_type.split("/")[-1]}'
+		await self.file_object.save(temp_file_path, use_cached=True)
+		self.source = temp_file_path
+
 
 class Track(PlayObject):
 	def __init__(self, url: str, title: str, source: str=None):

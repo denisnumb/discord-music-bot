@@ -54,11 +54,11 @@ async def add_tracks_to_queue(
 	if mix_with_queue:
 		updated_queue = queue[track_index+2:] + tracks
 		random.shuffle(updated_queue)
-		music_client.queue = queue[:track_index+2] + updated_queue
+		await music_client.set_queue(queue[:track_index+2] + updated_queue)
 	elif insert:
-		music_client.queue = queue[:track_index+1] + tracks + queue[track_index+1:]
+		await music_client.set_queue(queue[:track_index+1] + tracks + queue[track_index+1:])
 	else:
-		music_client.queue += tracks
+		await music_client.set_queue(queue + tracks)
 
 def create_play_object(yt_dlp_data: dict) -> Union[Track, Playlist]:
 	if not yt_dlp_data:
@@ -144,7 +144,7 @@ async def play_from_message(message: discord.Message):
 	audio_files = []
 	if message.attachments:
 		audio_files = [
-			TrackFile(file.url, file.filename) 
+			TrackFile(file)
 			for file in message.attachments 
 			if any(map(lambda x: x in file.content_type, ('audio', 'video')))
 		]

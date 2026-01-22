@@ -1,34 +1,35 @@
+import os
 import discord
 import asyncio
 from urllib.request import urlopen
 from urllib.error import HTTPError
-from typing import List, Union
+from typing import List, Union, Dict, Tuple
 from discord.ui import View, Button
 from locale_provider import LocaleKeys, translate
 from query_parser import yt_dlp_extract_info
+from storage import Storage
 from model import (
-	LightContext, 
-	Track, 
-	TrackFile, 
+	LightContext,
+	Playlist,
+	Track,
+	TrackFile,
 	FFMPEG_OPTIONS
 )
-from model import (
-	Playlist, 
-	Track, 
-	TrackFile
-)
 
+
+music_clients: Dict[int, MusicClient] = {}
 
 class MusicClient:
 	def __init__(self, channel: discord.TextChannel=None) -> None:
 		self.lock: asyncio.Lock = asyncio.Lock()
 		self.channel: discord.TextChannel = channel
 		self.voice_client: discord.VoiceClient = None
-		self.queue: List[Union[Track, TrackFile]] = []
+		self.temp_audio_files: Dict[TrackFile, str] = {}
 		self.track_index: int = 0
 		self.message_player: MessagePlayer = MessagePlayer(self)
 		self.__started: bool = False
 		self.__intends_to_leave: bool = False
+		self.__queue: List[Union[Track, TrackFile]] = []
 
 	@property
 	def is_playing_or_paused(self) -> bool:
@@ -41,7 +42,18 @@ class MusicClient:
 	@property
 	def is_started(self) -> bool:
 		return self.__started
-	
+
+	@property
+	def queue(self) -> List[Union[Track, TrackFile]]:
+		return self.__queue.copy()
+
+	async def set_queue(self, new_queue: List[Union[Track, TrackFile]]) -> None:
+		for track in new_queue:
+			if isinstance(track, TrackFile):
+				await track.save_temp(Storage.temp_path())
+
+		self.__queue = new_queue
+
 	def start(self) -> None:
 		self.__started = True
 
@@ -80,13 +92,11 @@ class MusicClient:
 
 	async def _prepare_sound_source(self) -> str:
 		current_track = self.queue[self.track_index]
-		sound_source = None
 
-		try:
-			sound_source = current_track.source
-			urlopen(sound_source)
-		except (HTTPError, AttributeError):
-			if not isinstance(current_track, TrackFile):
+		if not isinstance(current_track, TrackFile):
+			try:
+				urlopen(current_track.source)
+			except (HTTPError, AttributeError):
 				sound_source = yt_dlp_extract_info(current_track.url)
 				current_track.source = sound_source.get('url') if sound_source else None
 
@@ -106,7 +116,8 @@ class MusicClient:
 			try:
 				sound_source = await self._prepare_sound_source()
 				self.voice_client.play(discord.FFmpegPCMAudio(source=sound_source, **FFMPEG_OPTIONS))
-			except Exception:
+				excepted = 0
+			except:
 				await self.channel.send(embed=discord.Embed(description=translate(LocaleKeys.Info.track_play_error), colour=discord.Color.red()), delete_after=10)
 				excepted += 1
 				self.voice_client.stop()
@@ -135,11 +146,15 @@ class MusicClient:
 		if self.voice_client:
 			self.voice_client.stop()
 			await self.voice_client.disconnect(force=force)
-			
+
+		for file_path in self.temp_audio_files.values():
+			os.remove(file_path)
+
+		self.temp_audio_files = {}
 		self.voice_client = None
-		self.queue = []
 		self.track_index = 0
 		self.__started = False
+		self.__queue = []
 		await self.message_player.delete()
 
 class MessagePlayer:
