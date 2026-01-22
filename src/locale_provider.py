@@ -62,6 +62,7 @@ class LocaleKeys:
 		join_channel_error = 'info.join_channel_error'
 		cant_get_data_for_list = 'info.cant_get_data_for_list'
 		cant_get_data_for_everyone = 'info.cant_get_data_for_everyone'
+		downloading_audio_files = 'info.downloading_audio_files'
 
 	class Label:
 		tracklist_video_and_url_column = 'label.tracklist_video_and_url_column'

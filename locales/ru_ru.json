@@ -33,6 +33,7 @@
     "info.join_channel_error": "{0}, не удалось подключиться к голосовому каналу!",
     "info.cant_get_data_for_list": "{0}, возникла ошибка при получении данных для:\n\n**{1}**",
     "info.cant_get_data_for_everyone": "{0}, не удалось получить трек ни из одного из указанных значений",
+    "info.downloading_audio_files": "Загрузка аудио-файлов может занять несколько секунд...",
 
     "label.tracklist_video_and_url_column": "Видео/Ссылка",
     "label.tracklist_name_column": "{0}  Название\n\n",

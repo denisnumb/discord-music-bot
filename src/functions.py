@@ -4,7 +4,7 @@ import discord
 from urllib.request import urlopen
 from urllib.parse import urlencode
 from typing import Union, Set, List
-from music_client import MusicClient
+from music_client import MusicClient, music_clients
 from storage import Storage
 from views import AskYesNoView
 from locale_provider import LocaleKeys, translate
@@ -19,9 +19,9 @@ from model import (
 
 
 def get_music_client(guild: discord.Guild) -> MusicClient:
-	if guild.id not in Storage.music_clients.keys():
-		Storage.music_clients[guild.id] = MusicClient(Storage.dj_channels.get(guild.id))
-	return Storage.music_clients[guild.id]
+	if guild.id not in music_clients.keys():
+		music_clients[guild.id] = MusicClient(Storage.dj_channels.get(guild.id))
+	return music_clients[guild.id]
 
 async def get_tracknames(ctx) -> Set[str]:
 	key = ctx.options.get('name') or ctx.options.get('url_or_name')

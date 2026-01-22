@@ -3,7 +3,6 @@ import os
 import discord
 from pathlib import Path
 from typing import Union, Dict
-from music_client import MusicClient
 from model import (
 	LightContext, 
 	Playlist, 
@@ -12,16 +11,23 @@ from model import (
 
 
 class Storage:
-	__base_path = Path(__file__).resolve().parent 
+	__base_path = Path(__file__).resolve().parent
+	_temp_path = __base_path.parent / 'temp'
 	_saved_urls_path = __base_path.parent / 'data/saved_urls.json'
 	_audio_cache_path = __base_path.parent / 'data/audio_cache.json'
 	_dj_channels_path = __base_path.parent / 'data/dj_channels.json'
 	_cookies_file_path = __base_path.parent / 'data/cookies.txt'
 
-	music_clients: Dict[int, MusicClient] = {}
 	saved_urls: Dict[int, Dict[str, str]] = {}
 	audio_cache: Dict[str, Union[Track, Playlist]] = {}
 	dj_channels: Dict[int, discord.TextChannel] = {}
+
+	@classmethod
+	def temp_path(cls) -> Path:
+		if not os.path.exists(cls._temp_path):
+			os.mkdir(cls._temp_path)
+
+		return cls._temp_path
 
 	@classmethod
 	def get_guild_saved_urls(cls, ctx: Union[discord.ApplicationContext, LightContext, discord.AutocompleteContext]) -> Dict[str, str]:

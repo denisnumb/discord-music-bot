@@ -54,11 +54,11 @@ async def add_tracks_to_queue(
 	if mix_with_queue:
 		updated_queue = queue[track_index+2:] + tracks
 		random.shuffle(updated_queue)
-		music_client.queue = queue[:track_index+2] + updated_queue
+		music_client.set_queue(queue[:track_index+2] + updated_queue)
 	elif insert:
-		music_client.queue = queue[:track_index+1] + tracks + queue[track_index+1:]
+		music_client.set_queue(queue[:track_index+1] + tracks + queue[track_index+1:])
 	else:
-		music_client.queue += tracks
+		music_client.set_queue(queue + tracks)
 
 def create_play_object(yt_dlp_data: dict) -> Union[Track, Playlist]:
 	if not yt_dlp_data:
@@ -144,11 +144,23 @@ async def play_from_message(message: discord.Message):
 	audio_files = []
 	if message.attachments:
 		audio_files = [
-			TrackFile(file.url, file.filename) 
+			TrackFile(file)
 			for file in message.attachments 
 			if any(map(lambda x: x in file.content_type, ('audio', 'video')))
 		]
 
+	if audio_files:
+		loading_audio_message = await message.channel.send(embed=discord.Embed(
+			description=translate(LocaleKeys.Info.downloading_audio_files),
+			colour=discord.Colour.blue()
+		))
+
+		for audio_file in audio_files:
+			await audio_file.save_temp(Storage.temp_path())
+
+		await delete_message(loading_audio_message)
+
+	await delete_message(message)
 	if not audio_files and not args:
 		return
 
@@ -183,11 +195,12 @@ async def play_from_file(
 	insert: bool,
 	mix_with_queue: bool
 ) -> None:
-	await delete_message(ctx)
 	mc = get_music_client(ctx.guild)
 	dj_channel = Storage.dj_channels[ctx.guild.id]
 
 	await add_tracks_to_queue(mc, file, insert, mix_with_queue)
+	await file.save_temp(Storage.temp_path())
+	await delete_message(ctx)
 
 	message_text, embed_color = await get_embed_data(mc, insert, mix_with_queue, PlayEmbedTypes.FILE)
 	play_message = await dj_channel.send(embed=discord.Embed(description=f'{ctx.author.mention} {message_text}\n\n**{file.title}**', colour=embed_color))
