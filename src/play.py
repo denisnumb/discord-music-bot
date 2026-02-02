@@ -103,7 +103,11 @@ def create_play_object_wrapper(url: str) -> Union[Track, Playlist] | None:
 
 async def get_play_object_by_url(url: str) -> Union[Track, Playlist] | None:
 	if url not in Storage.audio_cache:
-		t = LoadingThread(target=create_play_object_wrapper, args=(url,))
+		t = LoadingThread(
+			target=create_play_object_wrapper,
+			args=(url,),
+			response_timeout=240 if is_playlist_url(url) else 60
+		)
 		t.start()
 		play_object = await t.join()
 
