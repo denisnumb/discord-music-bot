@@ -37,18 +37,19 @@ class PlayMixWithQueueArg(CustomBoolArgument):
 	choices = (translate(LocaleKeys.Label.mix_with_queue), )
 
 class LoadingThread(Thread):
-	def __init__(self, target, args=(), kwargs={}) -> None:
-		super().__init__(target=target, args=args, kwargs=kwargs)
+	def __init__(self, target, *, response_timeout: int, args=None, kwargs=None) -> None:
+		super().__init__(target=target, args=args or tuple(), kwargs=kwargs or {})
 		self.result = None
-		self.wait_time = 0
+		self.response_timeout = response_timeout
+		self.__wait_time = 0
 
 	def run(self) -> None:
 		self.result = self._target(*self._args, **self._kwargs)
 
-	async def join(self) -> None:
-		while not self.result and self.wait_time < 180:
+	async def join(self):
+		while not self.result and self.__wait_time < self.response_timeout:
 			await asyncio.sleep(.05)
-			self.wait_time += .05
+			self.__wait_time += .05
 		return self.result
 
 class LightContext:
