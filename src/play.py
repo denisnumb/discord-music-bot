@@ -109,7 +109,7 @@ async def get_play_object_by_url(url: str) -> Union[Track, Playlist] | None:
 			response_timeout=240 if is_playlist_url(url) else 60
 		)
 		t.start()
-		play_object = await t.join()
+		play_object = await t.wait_result_async()
 
 		if not play_object:
 			return

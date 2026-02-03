@@ -1,6 +1,6 @@
 import discord
 import asyncio
-from threading import Thread
+from threading import Thread, Event
 from discord.ext.commands import Converter
 from copy import deepcopy
 from typing import List
@@ -26,39 +26,43 @@ class AddTrackTypes:
 	CANCEL = -1
 
 class CustomBoolArgument(Converter):
-    async def convert(cls, ctx, arg):
-        return arg == cls.choices[0]
+	async def convert(cls, ctx, arg):
+		return arg == cls.choices[0]
 
 class PlayInsertArg(CustomBoolArgument):
-    choices = (translate(LocaleKeys.Label.insert), translate(LocaleKeys.Label.not_insert))
+	choices = (translate(LocaleKeys.Label.insert), translate(LocaleKeys.Label.not_insert))
 class PlayMixArg(CustomBoolArgument):
-    choices = (translate(LocaleKeys.Label.mix), )
+	choices = (translate(LocaleKeys.Label.mix), )
 class PlayMixWithQueueArg(CustomBoolArgument):
 	choices = (translate(LocaleKeys.Label.mix_with_queue), )
 
 class LoadingThread(Thread):
-	def __init__(self, target, *, response_timeout: int, args=None, kwargs=None) -> None:
-		super().__init__(target=target, args=args or tuple(), kwargs=kwargs or {})
+	def __init__(self, target, *, response_timeout: int, args=None, kwargs=None):
+		super().__init__(target=target, args=args or (), kwargs=kwargs or {})
 		self.result = None
 		self.response_timeout = response_timeout
-		self.__wait_time = 0
+		self._done = Event()
 
-	def run(self) -> None:
-		self.result = self._target(*self._args, **self._kwargs)
+	def run(self):
+		try:
+			self.result = self._target(*self._args, **self._kwargs)
+		finally:
+			self._done.set()
 
-	async def join(self):
-		while not self.result and self.__wait_time < self.response_timeout:
-			await asyncio.sleep(.05)
-			self.__wait_time += .05
+	async def wait_result_async(self):
+		waited = 0
+		while not self._done.is_set() and waited < self.response_timeout:
+			await asyncio.sleep(0.05)
+			waited += 0.05
 		return self.result
 
 class LightContext:
 	def __init__(
-        self, 
-        author: discord.Member, 
-        channel: discord.TextChannel, 
-        guild: discord.Guild
-        ) -> None:
+		self,
+		author: discord.Member,
+		channel: discord.TextChannel,
+		guild: discord.Guild
+		) -> None:
 		self.author = author
 		self.channel = channel
 		self.guild = guild
