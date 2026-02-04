@@ -205,7 +205,6 @@ async def play_from_file(
 	dj_channel = Storage.dj_channels[ctx.guild.id]
 
 	await add_tracks_to_queue(mc, file, insert, mix_with_queue)
-	await file.save_temp(Storage.temp_path())
 	await delete_message(ctx)
 
 	message_text, embed_color = await get_embed_data(mc, insert, mix_with_queue, PlayEmbedTypes.FILE)
