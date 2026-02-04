@@ -4,7 +4,10 @@ import subprocess
 from pathlib import Path
 
 
-def yt_dlp_extract_info(query: str) -> dict | None:
+class QueryParseError(Exception):
+    pass
+
+def yt_dlp_extract_info(query: str) -> dict:
     proc = subprocess.run(
         [sys.executable, Path(__file__).resolve(), query],
         stdout=subprocess.PIPE,
@@ -14,6 +17,7 @@ def yt_dlp_extract_info(query: str) -> dict | None:
 
     if proc.returncode == 0:
         return json.loads(proc.stdout)
+    raise QueryParseError(proc.stderr)
 
 if __name__ == "__main__":
     import yt_dlp
@@ -27,8 +31,7 @@ if __name__ == "__main__":
         'forcetitle': True, 
         'quiet': True, 
         'playlistend': Config.playlistend, 
-        'cookiefile': 'data/cookies.txt', 
-        'ignoreerrors': True
+        'cookiefile': 'data/cookies.txt'
     }
 
     query = sys.argv[1]

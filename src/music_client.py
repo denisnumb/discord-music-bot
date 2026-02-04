@@ -1,6 +1,7 @@
-import os
 import discord
 import asyncio
+import logging
+import traceback
 from urllib.request import urlopen
 from urllib.error import HTTPError
 from typing import List, Union, Dict
@@ -16,7 +17,7 @@ from model import (
 	FFMPEG_OPTIONS
 )
 
-
+logger = logging.getLogger(__name__)
 music_clients: Dict[int, 'MusicClient'] = {}
 
 class MusicClient:
@@ -116,6 +117,7 @@ class MusicClient:
 				self.voice_client.play(sound_source)
 				excepted = 0
 			except:
+				logger.error(f'Error during playback [track](<{self.queue[self.track_index].url}>):\n{traceback.format_exc()}')
 				await self.channel.send(embed=discord.Embed(description=translate(LocaleKeys.Info.track_play_error), colour=discord.Color.red()), delete_after=10)
 				excepted += 1
 				self.voice_client.stop()

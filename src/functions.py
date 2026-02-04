@@ -1,6 +1,7 @@
 import re
 import json
 import discord
+import logging
 from urllib.request import urlopen
 from urllib.parse import urlencode
 from typing import Union, Set, List
@@ -8,15 +9,17 @@ from music_client import MusicClient, music_clients
 from storage import Storage
 from views import AskYesNoView
 from locale_provider import LocaleKeys, translate
-from query_parser import yt_dlp_extract_info
+from query_parser import yt_dlp_extract_info, QueryParseError
 from model import (
-    PlayEmbedTypes,
-	TrackFile, 
-    Playlist, 
-    ErrorPlayArgument,
+	PlayEmbedTypes,
+	TrackFile,
+	Playlist,
+	InvalidPlayArgument,
 	LightContext
 )
 
+
+logger = logging.getLogger(__name__)
 
 def get_music_client(guild: discord.Guild) -> MusicClient:
 	if guild.id not in music_clients.keys():
@@ -67,14 +70,26 @@ def is_playlist_url(url: str) -> bool:
 		return not 'track' in url
 	return any(map(lambda x: x in url, ('/playlist', '/channel', '@', '/videos'))) or any(map(lambda x: url.endswith(x), ('/videos', '/shorts')))
 
-def parse_video_url(ctx: Union[discord.ApplicationContext, LightContext], url_or_name: str) -> str:
+async def parse_video_url(ctx: Union[discord.ApplicationContext, LightContext], url_or_name: str) -> str | InvalidPlayArgument:
 	saved_urls = Storage.get_guild_saved_urls(ctx)
 	
 	if url_or_name in saved_urls:
 		return saved_urls[url_or_name]
 	elif not url_or_name.startswith('http') and url_or_name and not url_or_name.isspace():
-		info = yt_dlp_extract_info(f'ytsearch:{url_or_name}')
-		return 'https://youtu.be/' + info['entries'][0]['id'] if (info and info['entries']) else ErrorPlayArgument(url_or_name)
+		try:
+			info = yt_dlp_extract_info(f'ytsearch:{url_or_name}')
+			entries = info and info.get('entries')
+			video_id = (isinstance(entries, list)
+						and len(entries)
+						and isinstance(entries[0], dict)
+						and entries[0].get('id'))
+
+			if not video_id:
+				raise QueryParseError('No results found for search')
+			return 'https://youtu.be/' + video_id
+		except QueryParseError as e:
+			logger.warning(f'Error when searching for a track by name [`{url_or_name}`]:\n{e}')
+			return InvalidPlayArgument(url_or_name)
 	return prepare_url(url_or_name)
 
 def get_youtube_video_id(url: str) -> str:
@@ -131,4 +146,4 @@ async def delete_message(message: Union[discord.Message, discord.Interaction], t
 			return await message.delete_original_response(delay=timeout)
 		await message.delete(delay=timeout)
 	except Exception as e:
-		print(f'Message delete error: {e}')
+		logger.warning(f'Message delete error: {e}')

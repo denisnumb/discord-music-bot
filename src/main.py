@@ -7,6 +7,9 @@ Locale.init(Config.locale)
 import os
 import discord
 import subprocess
+import logging
+from logging.handlers import RotatingFileHandler
+from datetime import datetime
 from discord import Option
 from discord.ext import tasks
 from storage import Storage
@@ -23,16 +26,31 @@ from functions import (
 	get_video_title,
 	get_tracknames,
 	is_playlist_url,
-	prepare_url
+	prepare_url,
+	parse_video_url
 )
 from play import (
 	play_from_message, 
 	play, 
 	play_list,
 	play_from_file,
-	get_play_object_by_url
+	get_play_object_by_url,
+	send_load_video_error
 )
 
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    handlers=[
+        logging.StreamHandler(),  # stdout
+        RotatingFileHandler(
+            os.path.join(Storage.logs_path(), f'{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.log'),
+            maxBytes=10 * 1024 * 1024,
+            backupCount=5
+        )
+    ]
+)
 
 bot = discord.Bot(intents=discord.Intents.all())
 guild_ids = Config.guild_ids
@@ -53,7 +71,7 @@ async def on_ready() -> None:
 
 	update_yt_dlp_task.start()
 
-	print('Bot started')
+	logging.info('Bot started')
 
 
 @bot.event
@@ -80,10 +98,10 @@ async def on_voice_state_update(
 
 @bot.event
 async def on_application_command_error(ctx: discord.ApplicationContext, error) -> None:
-	print(f'Error executing command {ctx.command.qualified_name}: {error}')
+	logging.error(f'Error executing command {ctx.command.qualified_name}: {error}')
 	await ctx.send(
 		embed=discord.Embed(
-			description=translate(LocaleKeys.Info.appliaction_command_error, ctx.author.mention, ctx.command.qualified_name), 
+			description=translate(LocaleKeys.Info.application_command_error, ctx.author.mention, ctx.command.qualified_name),
 			colour=discord.Color.red()
 			), 
 		delete_after=10
@@ -228,8 +246,7 @@ async def _add_track(
 
 	play_object = await get_play_object_by_url(url)
 	if not play_object:
-		await ctx.send(embed=discord.Embed(description=translate(LocaleKeys.Info.cant_get_data, ctx.author.mention), colour=discord.Color.red()), delete_after=15)
-		return await delete_message(message)
+		return await send_load_video_error(ctx, url, loading_message=message)
 
 	url = play_object.url
 	if isinstance(play_object, Playlist):
@@ -276,11 +293,10 @@ async def _remove_track(ctx: discord.ApplicationContext, name: Option(str, trans
 
 @bot.slash_command(name='get_track_names', description=translate(LocaleKeys.Cmd.GetTrackNames.desc), guild_ids=guild_ids)
 async def _get_names(ctx: discord.ApplicationContext, url_or_name: Option(str, translate(LocaleKeys.Cmd.GetTrackNames.url_or_name), required=True, autocomplete=get_tracknames)):
+	await ctx.defer()
+
 	saved_urls = Storage.get_guild_saved_urls(ctx)
-	
-	if url_or_name in saved_urls:
-		url_or_name = saved_urls[url_or_name]
-	
+	url_or_name = await parse_video_url(ctx, url_or_name)
 	names = [name for name in saved_urls if saved_urls[name] == url_or_name]
 	
 	if not names:

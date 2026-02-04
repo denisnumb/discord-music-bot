@@ -37,24 +37,31 @@ class PlayMixWithQueueArg(CustomBoolArgument):
 	choices = (translate(LocaleKeys.Label.mix_with_queue), )
 
 class LoadingThread(Thread):
-	def __init__(self, target, *, response_timeout: int, args=None, kwargs=None):
+	def __init__(self, target, *, response_timeout: int, args=None, kwargs=None) -> None:
 		super().__init__(target=target, args=args or (), kwargs=kwargs or {})
-		self.result = None
-		self.response_timeout = response_timeout
+		self.__error_message = None
+		self.__result = None
 		self._done = Event()
+		self.response_timeout = response_timeout
 
-	def run(self):
+	def run(self) -> None:
 		try:
-			self.result = self._target(*self._args, **self._kwargs)
+			self.__result = self._target(*self._args, **self._kwargs)
+		except Exception as e:
+			self.__error_message = str(e)
 		finally:
 			self._done.set()
+
+	def get_error_message(self) -> str | None:
+		return self.__error_message
 
 	async def wait_result_async(self):
 		waited = 0
 		while not self._done.is_set() and waited < self.response_timeout:
 			await asyncio.sleep(0.05)
 			waited += 0.05
-		return self.result
+
+		return self.__result
 
 class LightContext:
 	def __init__(
@@ -77,7 +84,7 @@ class LightContext:
 		return await self.channel.send(content, **kwargs)
 
 
-class ErrorPlayArgument(str):
+class InvalidPlayArgument(str):
 	def __bool__(self):
 		return False
 
