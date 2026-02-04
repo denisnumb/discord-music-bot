@@ -1,5 +1,6 @@
 import json
 import os
+import logging
 import discord
 from pathlib import Path
 from typing import Union, Dict
@@ -10,8 +11,11 @@ from model import (
 )
 
 
+logger = logging.getLogger(__name__)
+
 class Storage:
 	__base_path = Path(__file__).resolve().parent
+	_logs_path = __base_path.parent / 'logs'
 	_temp_path = __base_path.parent / 'temp'
 	_saved_urls_path = __base_path.parent / 'data/saved_urls.json'
 	_audio_cache_path = __base_path.parent / 'data/audio_cache.json'
@@ -28,6 +32,13 @@ class Storage:
 			os.mkdir(cls._temp_path)
 
 		return cls._temp_path
+
+	@classmethod
+	def logs_path(cls) -> Path:
+		if not os.path.exists(cls._logs_path):
+			os.mkdir(cls._logs_path)
+
+		return cls._logs_path
 
 	@classmethod
 	def get_guild_saved_urls(cls, ctx: Union[discord.ApplicationContext, LightContext, discord.AutocompleteContext]) -> Dict[str, str]:
@@ -81,7 +92,7 @@ class Storage:
 					for guild_id, urls_data in raw_saved_urls.items()
 				}
 		except Exception as e:
-			print(f'Error loading saved urls from file {cls._saved_urls_path}: {e}')
+			logger.error(f'Error loading saved urls from file {cls._saved_urls_path}: {e}')
 
 	@classmethod
 	async def load_audio_cache(cls) -> None:
@@ -102,7 +113,7 @@ class Storage:
 					entries=[Track(**track_data) for track_data in data.get('entries')]
 				)
 		except Exception as e:
-			print(f'Error loading url cache from file {cls._audio_cache_path}: {e}')
+			logger.error(f'Error loading url cache from file {cls._audio_cache_path}: {e}')
 
 	@classmethod
 	async def load_dj_channels(cls, bot: discord.Bot) -> None:
@@ -116,4 +127,4 @@ class Storage:
 				for guild_id, channel_id in raw_dj_channels.items()
 			}	
 		except Exception as e:
-			print(f'Error loading dj channels from file {cls._dj_channels_path}: {e}')
+			logger.error(f'Error loading dj channels from file {cls._dj_channels_path}: {e}')

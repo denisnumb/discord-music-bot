@@ -1,7 +1,7 @@
+import logging
 import discord
 import random
 from typing import Union, List
-from yt_dlp import YoutubeDL
 from storage import Storage
 from music_client import MusicClient
 from views import ChoicePlayOptionView
@@ -14,7 +14,8 @@ from model import (
 	LightContext,
 	AddTrackTypes,
 	PlayEmbedTypes,
-	LoadingThread
+	LoadingThread,
+	InvalidPlayArgument
 )
 from functions import (
 	get_data_type,
@@ -29,11 +30,13 @@ from functions import (
 )
 
 
+logger = logging.getLogger(__name__)
+
 async def try_connect(ctx: Union[discord.ApplicationContext, LightContext]) -> bool:
 	try:
 		get_music_client(ctx.guild).voice_client = await ctx.author.voice.channel.connect()
 		return True
-	except Exception as e:
+	except:
 		mc = get_music_client(ctx.guild)
 		await mc.reset(force=True)
 		await ctx.send(embed=discord.Embed(description=translate(LocaleKeys.Info.join_channel_error, ctx.author.mention), colour=discord.Color.red()), delete_after=60)
@@ -96,10 +99,7 @@ def create_play_object(yt_dlp_data: dict) -> Union[Track, Playlist]:
 	)
 
 def create_play_object_wrapper(url: str) -> Union[Track, Playlist] | None:
-	try:
-		return create_play_object(yt_dlp_extract_info(url))
-	except Exception as e:
-		print(f'Can\'t get data for url [{url}]: {e}')
+	return create_play_object(yt_dlp_extract_info(url))
 
 async def get_play_object_by_url(url: str) -> Union[Track, Playlist] | None:
 	if url not in Storage.audio_cache:
@@ -112,7 +112,9 @@ async def get_play_object_by_url(url: str) -> Union[Track, Playlist] | None:
 		play_object = await t.wait_result_async()
 
 		if not play_object:
-			return
+			if error_message := t.get_error_message():
+				logger.warning(f'Error while retrieving request data [`{url}`] using yt-dlp:\n{error_message}')
+			return None
 
 		Storage.audio_cache[url] = play_object
 		await Storage.save_audio_cache()
@@ -174,7 +176,7 @@ async def play_from_message(message: discord.Message):
 	mc = get_music_client(ctx.guild)
 
 	if audio_files or message.content.startswith('http') or message.content in Storage.get_guild_saved_urls(ctx) or call_play_list:
-		if call_play_list or is_playlist_url(parse_video_url(ctx, message.content)):
+		if call_play_list or is_playlist_url(await parse_video_url(ctx, message.content)):
 			mix = await ask_to_mix_request(message)
 	elif not await ask_to_find_video(message):
 		return
@@ -222,12 +224,12 @@ async def play_list(
 	mix: bool, 
 	mix_with_queue: bool
 	) -> None:
-	args = [parse_video_url(ctx, x.strip()) for x in urls_or_names.split(',') if x]
-	args_without_empty = [arg for arg in args if arg]
+	parsed = [await parse_video_url(ctx, x.strip()) for x in urls_or_names.split(',') if x]
+	parsed_without_errors = [url for url in parsed if url]
 	
-	if len(args_without_empty) == 1 and not files:
-		return await play(ctx, args_without_empty[0], insert, mix, mix_with_queue)
-	if len(files) == 1 and not args_without_empty:
+	if len(parsed_without_errors) == 1 and not files:
+		return await play(ctx, parsed_without_errors[0], insert, mix, mix_with_queue)
+	if len(files) == 1 and not parsed_without_errors:
 		return await play_from_file(ctx, files[0], insert, mix_with_queue)
 
 	mc = get_music_client(ctx.guild)
@@ -237,13 +239,17 @@ async def play_list(
 	message_text, _ = await get_embed_data(mc, insert, mix_with_queue, PlayEmbedTypes.PLAY_LIST)
 	play_list_message = await dj_channel.send(embed=discord.Embed(description=f'{ctx.author.mention} {message_text}\n\n*({translate(LocaleKeys.Label.names_and_tracks_loading)})*{quick_start}', colour=discord.Color.default()))
 
-	entries_count = len(args) + len(files)
+	entries_count = len(parsed) + len(files)
 	track_titles = []
 	temp_queue: List[Union[Track, TrackFile]] = []
 	error_args = []
 	nl = '\n'
 	
-	for i, url in enumerate(args, 1):
+	for i, url in enumerate(parsed, 1):
+		if isinstance(url, InvalidPlayArgument):
+			error_args.append(url)
+			continue
+
 		play_object = await get_play_object_by_url(url)
 		if not play_object:
 			error_args.append(url)
@@ -261,7 +267,7 @@ async def play_list(
 	for i, file in enumerate(files, 1):
 		track_titles.append(f'{file.title} *({translate(LocaleKeys.Label.file).title()})*')
 		temp_queue.append(file)
-		await play_list_message.edit(embed=discord.Embed(description=f'{ctx.author.mention} {message_text}\n\n*({translate(LocaleKeys.Label.names_and_tracks_loading)})* **[{i+len(args)}/{entries_count}]**{quick_start}', colour=discord.Color.default()))
+		await play_list_message.edit(embed=discord.Embed(description=f'{ctx.author.mention} {message_text}\n\n*({translate(LocaleKeys.Label.names_and_tracks_loading)})* **[{i+len(parsed)}/{entries_count}]**{quick_start}', colour=discord.Color.default()))
 
 	if len(error_args) > 0:
 		await ctx.send(embed=discord.Embed(description=translate(LocaleKeys.Info.cant_get_data_for_list, ctx.author.mention, nl.join(error_args)), colour=discord.Color.red()), delete_after=60)
@@ -273,8 +279,7 @@ async def play_list(
 		random.shuffle(temp_queue)
 	await add_tracks_to_queue(mc, temp_queue, insert, mix_with_queue)
 
-	lendth = len(''.join(track_titles))
-	if lendth > 1700:
+	if len(''.join(track_titles)) > 1700:
 		track_titles = track_titles[:10]
 		track_titles.append('...')
 
@@ -299,7 +304,7 @@ async def play(
 	if len([x for x in url_or_name.split(',') if x]) > 1:
 		return await play_list(ctx, url_or_name, insert, mix, mix_with_queue)
 
-	track_url = parse_video_url(ctx, url_or_name)
+	track_url = await parse_video_url(ctx, url_or_name)
 	if not track_url:
 		return await send_load_video_error(ctx, url_or_name)
 
