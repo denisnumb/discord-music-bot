@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 def get_music_client(guild: discord.Guild) -> MusicClient:
 	if guild.id not in music_clients.keys():
-		music_clients[guild.id] = MusicClient(Storage.dj_channels.get(guild.id))
+		music_clients[guild.id] = MusicClient(lambda: Storage.dj_channels.get(guild.id))
 	return music_clients[guild.id]
 
 async def get_tracknames(ctx) -> Set[str]:

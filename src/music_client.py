@@ -4,7 +4,7 @@ import logging
 import traceback
 from urllib.request import urlopen
 from urllib.error import HTTPError
-from typing import List, Union, Dict
+from typing import List, Union, Dict, Callable
 from discord.ui import View, Button
 from locale_provider import LocaleKeys, translate
 from query_parser import yt_dlp_extract_info
@@ -17,19 +17,24 @@ from model import (
 	FFMPEG_OPTIONS
 )
 
+
 logger = logging.getLogger(__name__)
 music_clients: Dict[int, 'MusicClient'] = {}
 
 class MusicClient:
-	def __init__(self, channel: discord.TextChannel=None) -> None:
+	def __init__(self, channel_getter: Callable[[], discord.TextChannel]=None) -> None:
 		self.lock: asyncio.Lock = asyncio.Lock()
-		self.channel: discord.TextChannel = channel
+		self.channel_getter: Callable[[], discord.TextChannel] = channel_getter
 		self.voice_client: discord.VoiceClient = None
 		self.track_index: int = 0
 		self.message_player: MessagePlayer = MessagePlayer(self)
 		self.__started: bool = False
 		self.__intends_to_leave: bool = False
 		self.__queue: List[Union[Track, TrackFile]] = []
+
+	@property
+	def channel(self) -> discord.TextChannel:
+		return self.channel_getter()
 
 	@property
 	def is_playing_or_paused(self) -> bool:
