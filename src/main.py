@@ -13,16 +13,16 @@ from datetime import datetime
 from discord import Option
 from discord.ext import tasks
 from storage import Storage
+from music_client import get_music_client
 from model import (
 	TrackFile,
-	Playlist, 
-	PlayInsertArg, 
-	PlayMixArg, 
-	PlayMixWithQueueArg
+	Playlist,
+	PlayInsertArg,
+	PlayMixArg,
+	PlayMixWithQueueArg, InvalidPlayObject
 )
 from functions import (
-	delete_message, 
-	get_music_client, 
+	delete_message,
 	get_video_title,
 	get_tracknames,
 	is_playlist_url,
@@ -30,12 +30,12 @@ from functions import (
 	parse_video_url
 )
 from play import (
-	play_from_message, 
-	play, 
+	handle_message,
+	play,
 	play_list,
 	play_from_file,
 	get_play_object_by_url,
-	send_load_video_error
+	send_load_play_object_error
 )
 
 
@@ -80,7 +80,7 @@ async def on_message(message: discord.Message) -> None:
 		return
 	if message.channel in Storage.dj_channels.values():
 		if message.author.voice:
-			await play_from_message(message)
+			await handle_message(message)
 
 
 @bot.event
@@ -248,8 +248,8 @@ async def _add_track(
 		message = await dj_channel.send(embed=discord.Embed(description=translate(LocaleKeys.Info.user_adds_name_loading, ctx.author.mention, name, url), colour=discord.Color.orange()))
 
 	play_object = await get_play_object_by_url(url)
-	if not play_object:
-		return await send_load_video_error(ctx, url, loading_message=message)
+	if isinstance(play_object, InvalidPlayObject):
+		return await send_load_play_object_error(ctx, play_object, loading_message=message)
 
 	url = play_object.url
 	if isinstance(play_object, Playlist):
@@ -299,7 +299,7 @@ async def _get_names(ctx: discord.ApplicationContext, url_or_name: Option(str, t
 	await ctx.defer()
 
 	saved_urls = Storage.get_guild_saved_urls(ctx)
-	url_or_name = await parse_video_url(ctx, url_or_name)
+	url_or_name = await parse_video_url(ctx, url_or_name, search=False)
 	names = [name for name in saved_urls if saved_urls[name] == url_or_name]
 	
 	if not names:

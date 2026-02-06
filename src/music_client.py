@@ -21,6 +21,11 @@ from model import (
 logger = logging.getLogger(__name__)
 music_clients: Dict[int, 'MusicClient'] = {}
 
+def get_music_client(guild: discord.Guild) -> MusicClient:
+	if guild.id not in music_clients.keys():
+		music_clients[guild.id] = MusicClient(lambda: Storage.dj_channels.get(guild.id))
+	return music_clients[guild.id]
+
 class MusicClient:
 	def __init__(self, channel_getter: Callable[[], discord.TextChannel]=None) -> None:
 		self.lock: asyncio.Lock = asyncio.Lock()
@@ -98,7 +103,7 @@ class MusicClient:
 			try:
 				urlopen(current_track.source)
 			except (HTTPError, AttributeError):
-				sound_source = yt_dlp_extract_info(current_track.url)
+				sound_source = await yt_dlp_extract_info(current_track.url)
 				current_track.source = sound_source.get('url') if sound_source else None
 
 		return discord.FFmpegPCMAudio(
@@ -123,6 +128,7 @@ class MusicClient:
 				excepted = 0
 			except:
 				logger.error(f'Error during playback [track](<{self.queue[self.track_index].url}>):\n{traceback.format_exc()}')
+				# todo add track title and Optional[reason] to LocaleKeys.Info.track_play_error
 				await self.channel.send(embed=discord.Embed(description=translate(LocaleKeys.Info.track_play_error), colour=discord.Color.red()), delete_after=10)
 				excepted += 1
 				self.voice_client.stop()
