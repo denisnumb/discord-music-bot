@@ -5,7 +5,6 @@ import logging
 from urllib.request import urlopen
 from urllib.parse import urlencode
 from typing import Union, Set, List
-from music_client import MusicClient, music_clients
 from storage import Storage
 from views import AskYesNoView
 from locale_provider import LocaleKeys, translate
@@ -14,17 +13,12 @@ from model import (
 	PlayEmbedTypes,
 	TrackFile,
 	Playlist,
-	InvalidPlayArgument,
+	InvalidPlayObject,
 	LightContext
 )
 
 
 logger = logging.getLogger(__name__)
-
-def get_music_client(guild: discord.Guild) -> MusicClient:
-	if guild.id not in music_clients.keys():
-		music_clients[guild.id] = MusicClient(lambda: Storage.dj_channels.get(guild.id))
-	return music_clients[guild.id]
 
 async def get_tracknames(ctx) -> Set[str]:
 	key = ctx.options.get('name') or ctx.options.get('url_or_name')
@@ -33,8 +27,8 @@ async def get_tracknames(ctx) -> Set[str]:
 def get_data_type(is_playlist: bool) -> str:
 	return PlayEmbedTypes.PLAYLIST if is_playlist else PlayEmbedTypes.VIDEO
 
-async def get_embed_data(music_client: MusicClient, insert: bool, mix_with_queue: bool, data_type: str) -> str:
-	if music_client.is_playing_or_paused:
+async def get_embed_data(is_playing_or_paused: bool, insert: bool, mix_with_queue: bool, data_type: str) -> tuple[str, discord.Color]:
+	if is_playing_or_paused:
 		if insert and not mix_with_queue:
 			return translate(LocaleKeys.Info.user_insert, data_type), discord.Color.purple()
 		elif mix_with_queue:
@@ -43,11 +37,18 @@ async def get_embed_data(music_client: MusicClient, insert: bool, mix_with_queue
 			return translate(LocaleKeys.Info.user_adds, data_type), discord.Color.gold()
 	return translate(LocaleKeys.Info.user_play, data_type), discord.Color.green()
 
-async def send_load_video_error(ctx, video_url: str, loading_message=None) -> None:
+async def send_load_play_object_error(ctx, invalid_play_object: InvalidPlayObject, loading_message=None) -> None:
 	if loading_message:
 		await delete_message(loading_message)
-	arg_data = translate(LocaleKeys.Label.for_track, video_url) if video_url.startswith('http') else f'`{video_url}`'
-	await ctx.send(embed=discord.Embed(description=translate(LocaleKeys.Info.cant_get_data_for, ctx.author.mention, arg_data), colour=discord.Color.red()), delete_after=60)
+
+	if is_playlist_url(invalid_play_object):
+		object_type = translate(LocaleKeys.Label.for_playlist, invalid_play_object)
+	elif invalid_play_object.startswith('http'):
+		object_type = translate(LocaleKeys.Label.for_track, invalid_play_object)
+	else:
+		object_type = translate(LocaleKeys.Label.for_query, invalid_play_object)
+
+	await ctx.send(embed=discord.Embed(description=translate(LocaleKeys.Info.cant_get_data_for, ctx.author.mention, object_type, invalid_play_object.get_reason()), colour=discord.Color.red()), delete_after=60)
 
 
 async def prepare_request(ctx: Union[discord.ApplicationContext, LightContext], message_content: str, audio_files: List[TrackFile]) -> str:
@@ -70,26 +71,51 @@ def is_playlist_url(url: str) -> bool:
 		return not 'track' in url
 	return any(map(lambda x: x in url, ('/playlist', '/channel', '@', '/videos'))) or any(map(lambda x: url.endswith(x), ('/videos', '/shorts')))
 
-async def parse_video_url(ctx: Union[discord.ApplicationContext, LightContext], url_or_name: str) -> str | InvalidPlayArgument:
+def prepare_error_reason(exception: Exception | None) -> str:
+	if exception is None:
+		return translate(LocaleKeys.Label.not_found)
+
+	result = str(exception)
+	if isinstance(exception, QueryParseError):
+		if result == str(None):
+			return translate(LocaleKeys.Label.not_found)
+		elif 'not available' in result or 'unavailable' in result:
+			return translate(LocaleKeys.Label.data_unavailable)
+	elif isinstance(exception, TimeoutError):
+		return translate(LocaleKeys.Label.timeout)
+	elif isinstance(exception, discord.Forbidden) and 'missing permissions' in result.lower():
+		return translate(LocaleKeys.Info.bot_missing_permissions)
+
+	return result
+
+
+async def find_video_by_query(query: str) -> str | InvalidPlayObject:
+	try:
+		info = await yt_dlp_extract_info(f'ytsearch:{query}')
+		entries = info and info.get('entries')
+		video_id = (isinstance(entries, list)
+					and len(entries)
+					and isinstance(entries[0], dict)
+					and entries[0].get('id'))
+
+		if not video_id:
+			raise QueryParseError(None)
+		return 'https://youtu.be/' + video_id
+	except (QueryParseError, TimeoutError) as parse_error:
+		logger.warning(f'Error when searching for a track by name [`{query}`]:\n{parse_error}')
+		return InvalidPlayObject(query).with_reason(prepare_error_reason(parse_error))
+
+async def parse_video_url(
+		ctx: Union[discord.ApplicationContext, LightContext],
+		url_or_name: str,
+		search: bool=True
+) -> str | InvalidPlayObject:
 	saved_urls = Storage.get_guild_saved_urls(ctx)
 	
 	if url_or_name in saved_urls:
 		return saved_urls[url_or_name]
-	elif not url_or_name.startswith('http') and url_or_name and not url_or_name.isspace():
-		try:
-			info = yt_dlp_extract_info(f'ytsearch:{url_or_name}')
-			entries = info and info.get('entries')
-			video_id = (isinstance(entries, list)
-						and len(entries)
-						and isinstance(entries[0], dict)
-						and entries[0].get('id'))
-
-			if not video_id:
-				raise QueryParseError('No results found for search')
-			return 'https://youtu.be/' + video_id
-		except QueryParseError as e:
-			logger.warning(f'Error when searching for a track by name [`{url_or_name}`]:\n{e}')
-			return InvalidPlayArgument(url_or_name)
+	elif search and url_or_name and not url_or_name.isspace() and not url_or_name.startswith('http'):
+		return await find_video_by_query(url_or_name)
 	return prepare_url(url_or_name)
 
 def get_youtube_video_id(url: str) -> str:

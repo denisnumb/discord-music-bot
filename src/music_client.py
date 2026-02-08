@@ -9,6 +9,7 @@ from discord.ui import View, Button
 from locale_provider import LocaleKeys, translate
 from query_parser import yt_dlp_extract_info
 from storage import Storage
+from functions import prepare_error_reason
 from model import (
 	LightContext,
 	Playlist,
@@ -20,6 +21,11 @@ from model import (
 
 logger = logging.getLogger(__name__)
 music_clients: Dict[int, 'MusicClient'] = {}
+
+def get_music_client(guild: discord.Guild) -> 'MusicClient':
+	if guild.id not in music_clients.keys():
+		music_clients[guild.id] = MusicClient(lambda: Storage.dj_channels.get(guild.id))
+	return music_clients[guild.id]
 
 class MusicClient:
 	def __init__(self, channel_getter: Callable[[], discord.TextChannel]=None) -> None:
@@ -38,12 +44,16 @@ class MusicClient:
 
 	@property
 	def is_playing_or_paused(self) -> bool:
-		return self.voice_client and (self.voice_client.is_playing() or self.voice_client.is_paused())
+		return self.is_connected and (self.voice_client.is_playing() or self.voice_client.is_paused())
 
 	@property
 	def is_paused(self) -> bool:
 		return self.voice_client and self.voice_client.is_paused()
-	
+
+	@property
+	def is_connected(self) -> bool:
+		return self.voice_client and self.voice_client.is_connected()
+
 	@property
 	def is_started(self) -> bool:
 		return self.__started
@@ -59,7 +69,7 @@ class MusicClient:
 		self.__started = True
 
 	def __voice_channels_are_equal(self, user: discord.Member) -> bool:
-		return user.voice and user.voice.channel == self.voice_client.channel
+		return user.voice and self.voice_client and user.voice.channel == self.voice_client.channel
 
 	async def next(self, user: discord.Member) -> None:
 		if not self.__voice_channels_are_equal(user):
@@ -82,12 +92,17 @@ class MusicClient:
 		if not self.__voice_channels_are_equal(user):
 			return False
 		self.voice_client.resume() if self.is_paused else self.voice_client.pause()
-		await discord.utils.get(user.guild.members, id=self.voice_client.client.user.id).edit(mute=self.is_paused)
+
+		try:
+			await user.guild.me.edit(mute=self.is_paused)
+		except discord.Forbidden:
+			pass
+
 		return True
 
 	async def stop(self, user: discord.Member) -> None:
 		if not self.__voice_channels_are_equal(user):
-			return False
+			return
 		await self.reset()
 		await self.channel.send(embed=discord.Embed(description=translate(LocaleKeys.Info.user_play_stop, user.mention), colour=discord.Color.red()))
 
@@ -98,7 +113,7 @@ class MusicClient:
 			try:
 				urlopen(current_track.source)
 			except (HTTPError, AttributeError):
-				sound_source = yt_dlp_extract_info(current_track.url)
+				sound_source = await yt_dlp_extract_info(current_track.url)
 				current_track.source = sound_source.get('url') if sound_source else None
 
 		return discord.FFmpegPCMAudio(
@@ -113,17 +128,26 @@ class MusicClient:
 		self.start()
 		excepted = 0
 
-		while len(self.queue) > self.track_index and excepted < 3:
-			await self.message_player.update()
-			await discord.utils.get(ctx.guild.members, id=self.voice_client.client.user.id).edit(mute=False)
-
+		while self.is_connected and len(self.queue) > self.track_index and excepted < 3:
 			try:
+				await self.message_player.update()
+
+				try:
+					await ctx.guild.me.edit(mute=False)
+				except discord.Forbidden:
+					pass
+
 				sound_source = await self._prepare_sound_source()
 				self.voice_client.play(sound_source)
 				excepted = 0
-			except:
-				logger.error(f'Error during playback [track](<{self.queue[self.track_index].url}>):\n{traceback.format_exc()}')
-				await self.channel.send(embed=discord.Embed(description=translate(LocaleKeys.Info.track_play_error), colour=discord.Color.red()), delete_after=10)
+			except Exception as e:
+				track = self.queue[self.track_index]
+				logger.error(f'Error during playback track [{track.url}]:\n{traceback.format_exc()}')
+				reason = prepare_error_reason(e)
+				formatted_track = (translate(LocaleKeys.Label.for_track, track.url)
+								   if isinstance(track, Track) else
+								   translate(LocaleKeys.Label.for_file, track.title))
+				await self.channel.send(embed=discord.Embed(description=translate(LocaleKeys.Info.track_play_error, formatted_track, reason), colour=discord.Color.red()), delete_after=30)
 				excepted += 1
 				self.voice_client.stop()
 
