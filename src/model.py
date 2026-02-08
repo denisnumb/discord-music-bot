@@ -11,6 +11,19 @@ FFMPEG_OPTIONS = {
 	'options': '-vn'
 }
 
+REQUIRED_PERMISSIONS = [
+    "add_reactions",
+    "attach_files",
+    "connect",
+    "embed_links",
+    "mute_members",
+    "send_messages",
+	"send_messages_in_threads",
+	"set_voice_channel_status",
+	"speak",
+	"view_channel",
+]
+
 class PlayEmbedTypes:
 	VIDEO = translate(LocaleKeys.Label.track)
 	PLAYLIST = translate(LocaleKeys.Label.playlist)
@@ -62,7 +75,7 @@ class InvalidPlayObject(str):
 
 	def get_reason(self) -> str | None:
 		if hasattr(self, 'reason'):
-			return self.reason
+			return self.reason[:200]
 		return None
 
 	def __bool__(self):

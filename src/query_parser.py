@@ -46,6 +46,10 @@ async def yt_dlp_extract_info(query: str, timeout: int=60) -> dict:
     return json.loads(stdout.decode())
 
 if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print(None, file=sys.stderr)
+        sys.exit(1)
+
     import yt_dlp
     from contextlib import redirect_stdout, redirect_stderr
     from io import StringIO

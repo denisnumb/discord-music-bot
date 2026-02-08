@@ -1,6 +1,7 @@
 import logging
 import discord
 import random
+import traceback
 from typing import Union, List
 from storage import Storage
 from music_client import MusicClient, get_music_client
@@ -25,7 +26,7 @@ from functions import (
 	ask_yes_no,
 	send_load_play_object_error,
 	prepare_request,
-	prepare_yt_dlp_error_reason
+	prepare_error_reason
 )
 
 
@@ -33,9 +34,10 @@ logger = logging.getLogger(__name__)
 
 async def try_connect(ctx: Union[discord.ApplicationContext, LightContext]) -> bool:
 	try:
-		get_music_client(ctx.guild).voice_client = await ctx.author.voice.channel.connect()
+		get_music_client(ctx.guild).voice_client = await ctx.author.voice.channel.connect(timeout=5)
 		return True
 	except:
+		logger.warning(f'Error while trying to connect to voice channel:\n{traceback.format_exc()}')
 		mc = get_music_client(ctx.guild)
 		await mc.reset(force=True)
 		await ctx.send(embed=discord.Embed(description=translate(LocaleKeys.Info.join_channel_error, ctx.author.mention), colour=discord.Color.red()), delete_after=60)
@@ -107,10 +109,10 @@ async def get_play_object_by_url(url: str) -> Union[Track, Playlist] | InvalidPl
 			play_object = create_play_object(info)
 		except (QueryParseError, ValueError, TimeoutError) as parse_error:
 			logger.warning(f'Error while retrieving request data [`{url}`] using yt-dlp:\n{parse_error}')
-			return InvalidPlayObject(url).with_reason(prepare_yt_dlp_error_reason(parse_error))
+			return InvalidPlayObject(url).with_reason(prepare_error_reason(parse_error))
 
 		if not play_object:
-			return InvalidPlayObject(url).with_reason(prepare_yt_dlp_error_reason(None))
+			return InvalidPlayObject(url).with_reason(prepare_error_reason(None))
 
 		Storage.audio_cache[url] = play_object
 		await Storage.save_audio_cache()
@@ -142,7 +144,7 @@ async def ask_to_find_video(message: discord.Message):
 async def handle_message(message: discord.Message):
 	insert, mix, mix_with_queue = False, False, False
 
-	args = [x for x in message.content.split(',') if x]
+	args = [x for x in message.content.split(',') if x and not x.isspace()]
 	audio_files = []
 	if message.attachments:
 		audio_files = [
@@ -219,7 +221,7 @@ async def play_list(
 	mix: bool, 
 	mix_with_queue: bool
 	) -> None:
-	parsed = [await parse_video_url(ctx, x.strip()) for x in urls_or_names.split(',') if x]
+	parsed = [await parse_video_url(ctx, x.strip()) for x in urls_or_names.split(',') if x and not x.isspace()]
 	parsed_without_errors = [url for url in parsed if url]
 	
 	if len(parsed_without_errors) == 1 and not files:
@@ -251,7 +253,7 @@ async def play_list(
 			continue
 
 		playlist_mark = '' if not isinstance(play_object, Playlist) else f' *({translate(LocaleKeys.Label.playlist).title()})*'
-		track_titles.append(f'[{play_object.title}]({play_object.url}){playlist_mark}')
+		track_titles.append(f'- [{play_object.title}]({play_object.url}){playlist_mark}')
 		if isinstance(play_object, Playlist):
 			temp_queue += play_object.entries
 		else:
@@ -260,7 +262,7 @@ async def play_list(
 		await play_list_message.edit(embed=discord.Embed(description=f'{ctx.author.mention} {message_text}\n\n*({translate(LocaleKeys.Label.names_and_tracks_loading)})* **[{i}/{entries_count}]**{quick_start}', colour=discord.Color.default()))
 	
 	for i, file in enumerate(files, 1):
-		track_titles.append(f'{file.title} *({translate(LocaleKeys.Label.file).title()})*')
+		track_titles.append(f'- {file.title} *({translate(LocaleKeys.Label.file).title()})*')
 		temp_queue.append(file)
 		await play_list_message.edit(embed=discord.Embed(description=f'{ctx.author.mention} {message_text}\n\n*({translate(LocaleKeys.Label.names_and_tracks_loading)})* **[{i+len(parsed)}/{entries_count}]**{quick_start}', colour=discord.Color.default()))
 

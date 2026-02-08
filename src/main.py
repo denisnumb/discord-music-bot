@@ -1,3 +1,5 @@
+from discord.ext.commands import CommandNotFound
+
 from config import Config
 from locale_provider import *
 
@@ -19,7 +21,9 @@ from model import (
 	Playlist,
 	PlayInsertArg,
 	PlayMixArg,
-	PlayMixWithQueueArg, InvalidPlayObject
+	PlayMixWithQueueArg,
+	InvalidPlayObject,
+	REQUIRED_PERMISSIONS
 )
 from functions import (
 	delete_message,
@@ -27,7 +31,8 @@ from functions import (
 	get_tracknames,
 	is_playlist_url,
 	prepare_url,
-	parse_video_url
+	parse_video_url,
+	prepare_error_reason
 )
 from play import (
 	handle_message,
@@ -82,7 +87,6 @@ async def on_message(message: discord.Message) -> None:
 		if message.author.voice:
 			await handle_message(message)
 
-
 @bot.event
 async def on_voice_state_update(
 	member: discord.Member, 
@@ -90,18 +94,17 @@ async def on_voice_state_update(
 	after: discord.VoiceState
 	) -> None:
 	# disconnect the bot from the voice channel if no one is present
-	bot_member = discord.utils.get(member.guild.members, id=bot.user.id)
+	bot_member = member.guild.me
 	if bot_member.voice and len(bot_member.voice.channel.members) == 1:
 		music_client = get_music_client(bot_member.guild)
 		await music_client.leave_the_channel_with_timeout(bot_member)
 
-
 @bot.event
-async def on_application_command_error(ctx: discord.ApplicationContext, error) -> None:
+async def on_application_command_error(ctx: discord.ApplicationContext, error: discord.ApplicationCommandError) -> None:
 	logging.error(f'Error executing command {ctx.command.qualified_name}: {error}')
-	await ctx.send(
+	await ctx.respond(
 		embed=discord.Embed(
-			description=translate(LocaleKeys.Info.application_command_error, ctx.author.mention, ctx.command.qualified_name),
+			description=translate(LocaleKeys.Info.application_command_error, ctx.author.mention, ctx.command.qualified_name, prepare_error_reason(error.__cause__)),
 			colour=discord.Color.red()
 			), 
 		delete_after=10
@@ -133,10 +136,38 @@ async def update_yt_dlp_cmd(ctx: discord.ApplicationContext) -> None:
 
 
 @bot.slash_command(
+	name='check_permissions',
+	description=translate(LocaleKeys.Cmd.CheckPermissions.desc),
+	guild_ids=guild_ids
+)
+@discord.default_permissions(manage_guild=True)
+async def check_permissions(ctx: discord.ApplicationContext):
+	bot_member = ctx.guild.me
+	missing = []
+
+	for perm in REQUIRED_PERMISSIONS:
+		if not getattr(bot_member.guild_permissions, perm):
+			missing.append('- ' + translate(getattr(LocaleKeys.Permissions, perm)))
+
+	if missing:
+		return await ctx.respond(
+			embed=discord.Embed(description=translate(LocaleKeys.Info.missing_permissions_list, ctx.author.mention, '\n'.join(missing)), color=discord.Color.red()),
+			ephemeral=True,
+			delete_after=60
+		)
+
+	return await ctx.respond(
+		embed=discord.Embed(description=translate(LocaleKeys.Info.bot_has_all_permissions, ctx.author.mention), color=discord.Color.green()),
+		ephemeral=True,
+		delete_after=30
+	)
+
+@bot.slash_command(
 	name='set_dj_channel', 
 	description=translate(LocaleKeys.Cmd.SetDjChannel.desc), 
 	guild_ids=guild_ids
 )
+@discord.default_permissions(manage_guild=True)
 async def set_dj_channel(
 	ctx: discord.ApplicationContext,
 	channel: discord.Option(discord.TextChannel, translate(LocaleKeys.Cmd.SetDjChannel.channel), required=True, default=None)
@@ -158,6 +189,7 @@ async def set_dj_channel(
 	description=translate(LocaleKeys.Cmd.RemoveDjChannel.desc), 
 	guild_ids=guild_ids
 )
+@discord.default_permissions(manage_guild=True)
 async def remove_dj_channel(
 	ctx: discord.ApplicationContext
 	) -> None:
@@ -198,6 +230,7 @@ async def _play(
 	await play(ctx, url_or_name, insert, mix, mix_with_queue)
 
 @bot.slash_command(name='clear_music_cache', description=translate(LocaleKeys.Cmd.ClearMusicCache.desc), guild_ids=guild_ids)
+@discord.default_permissions(manage_guild=True)
 async def _clear_music_cache(
 	ctx: discord.ApplicationContext, 
 	url_or_name: Option(str, translate(LocaleKeys.Cmd.ClearMusicCache.url_or_name), required=False, default=None)
@@ -243,7 +276,6 @@ async def _add_track(
 		return await ctx.send(embed=discord.Embed(description=translate(LocaleKeys.Info.enter_url, ctx.author.mention), colour=discord.Color.red()), delete_after=15)
 
 	url = prepare_url(url)
-
 	if is_playlist_url(url):
 		message = await dj_channel.send(embed=discord.Embed(description=translate(LocaleKeys.Info.user_adds_name_loading, ctx.author.mention, name, url), colour=discord.Color.orange()))
 
@@ -253,9 +285,9 @@ async def _add_track(
 
 	url = play_object.url
 	if isinstance(play_object, Playlist):
-		await message.edit(embed=discord.Embed(description=translate(LocaleKeys.Info.user_adds_playlist_name, ctx.author.mention, name, play_object.title, url), colour=discord.Color.orange()))
+		await message.edit(embed=discord.Embed(description=translate(LocaleKeys.Info.user_adds_playlist_name, ctx.author.mention, name, f'[{play_object.title}]({url})'), colour=discord.Color.orange()))
 	else:
-		await dj_channel.send(embed=discord.Embed(description=translate(LocaleKeys.Info.user_adds_track_name, ctx.author.mention, name, play_object.title, url), colour=discord.Color.orange()))
+		await dj_channel.send(embed=discord.Embed(description=translate(LocaleKeys.Info.user_adds_track_name, ctx.author.mention, name, f'[{play_object.title}]({url})'), colour=discord.Color.orange()))
 		
 	saved_urls[name] = url
 	await Storage.save_urls()

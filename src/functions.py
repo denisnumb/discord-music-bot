@@ -27,7 +27,7 @@ async def get_tracknames(ctx) -> Set[str]:
 def get_data_type(is_playlist: bool) -> str:
 	return PlayEmbedTypes.PLAYLIST if is_playlist else PlayEmbedTypes.VIDEO
 
-async def get_embed_data(is_playing_or_paused: bool, insert: bool, mix_with_queue: bool, data_type: str) -> str:
+async def get_embed_data(is_playing_or_paused: bool, insert: bool, mix_with_queue: bool, data_type: str) -> tuple[str, discord.Color]:
 	if is_playing_or_paused:
 		if insert and not mix_with_queue:
 			return translate(LocaleKeys.Info.user_insert, data_type), discord.Color.purple()
@@ -42,14 +42,13 @@ async def send_load_play_object_error(ctx, invalid_play_object: InvalidPlayObjec
 		await delete_message(loading_message)
 
 	if is_playlist_url(invalid_play_object):
-		object_type = 'playlist' # todo add locale
+		object_type = translate(LocaleKeys.Label.for_playlist, invalid_play_object)
 	elif invalid_play_object.startswith('http'):
 		object_type = translate(LocaleKeys.Label.for_track, invalid_play_object)
 	else:
-		object_type = 'query' # todo add locale 'query `{0}`'
+		object_type = translate(LocaleKeys.Label.for_query, invalid_play_object)
 
-	# todo add REASON block for LocaleKeys.Info.cant_get_data_for
-	await ctx.send(embed=discord.Embed(description=translate(LocaleKeys.Info.cant_get_data_for, ctx.author.mention, object_type), colour=discord.Color.red()), delete_after=60)
+	await ctx.send(embed=discord.Embed(description=translate(LocaleKeys.Info.cant_get_data_for, ctx.author.mention, object_type, invalid_play_object.get_reason()), colour=discord.Color.red()), delete_after=60)
 
 
 async def prepare_request(ctx: Union[discord.ApplicationContext, LightContext], message_content: str, audio_files: List[TrackFile]) -> str:
@@ -72,18 +71,20 @@ def is_playlist_url(url: str) -> bool:
 		return not 'track' in url
 	return any(map(lambda x: x in url, ('/playlist', '/channel', '@', '/videos'))) or any(map(lambda x: url.endswith(x), ('/videos', '/shorts')))
 
-def prepare_yt_dlp_error_reason(exception: Exception | None) -> str:
+def prepare_error_reason(exception: Exception | None) -> str:
 	if exception is None:
-		return ''  # todo return localized "Nothing found"
+		return translate(LocaleKeys.Label.not_found)
 
 	result = str(exception)
 	if isinstance(exception, QueryParseError):
 		if result == str(None):
-			return '' # todo return localized "Nothing found"
+			return translate(LocaleKeys.Label.not_found)
 		elif 'not available' in result or 'unavailable' in result:
-			return '' # todo return "Unavailable"
+			return translate(LocaleKeys.Label.data_unavailable)
 	elif isinstance(exception, TimeoutError):
-		return '' # todo return timeout
+		return translate(LocaleKeys.Label.timeout)
+	elif isinstance(exception, discord.Forbidden) and 'missing permissions' in result.lower():
+		return translate(LocaleKeys.Info.bot_missing_permissions)
 
 	return result
 
@@ -102,7 +103,7 @@ async def find_video_by_query(query: str) -> str | InvalidPlayObject:
 		return 'https://youtu.be/' + video_id
 	except (QueryParseError, TimeoutError) as parse_error:
 		logger.warning(f'Error when searching for a track by name [`{query}`]:\n{parse_error}')
-		return InvalidPlayObject(query).with_reason(prepare_yt_dlp_error_reason(parse_error))
+		return InvalidPlayObject(query).with_reason(prepare_error_reason(parse_error))
 
 async def parse_video_url(
 		ctx: Union[discord.ApplicationContext, LightContext],

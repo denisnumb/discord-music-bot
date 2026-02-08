@@ -62,11 +62,17 @@ class LocaleKeys:
 		cant_get_data_for_list = 'info.cant_get_data_for_list'
 		cant_get_data_for_everyone = 'info.cant_get_data_for_everyone'
 		downloading_audio_files = 'info.downloading_audio_files'
+		bot_missing_permissions = 'info.bot_missing_permissions'
+		missing_permissions_list = 'info.missing_permissions_list'
+		bot_has_all_permissions = 'info.bot_has_all_permissions'
 
 	class Label:
 		tracklist_video_and_url_column = 'label.tracklist_video_and_url_column'
 		tracklist_name_column = 'label.tracklist_name_column'
 		for_track = 'label.for_track'
+		for_playlist = 'label.for_playlist'
+		for_query = 'label.for_query'
+		for_file = 'label.for_file'
 		and_ = 'label.and_'
 		playlist = 'label.playlist'
 		track = 'label.track'
@@ -90,6 +96,21 @@ class LocaleKeys:
 		cancel = 'label.cancel'
 		yes = 'label.yes'
 		no = 'label.no'
+		timeout = 'label.timeout'
+		not_found = 'label.not_found'
+		data_unavailable = 'label.data_unavailable'
+
+	class Permissions:
+		add_reactions = 'permissions.add_reactions'
+		attach_files = 'permissions.attach_files'
+		connect = 'permissions.connect'
+		embed_links = 'permissions.embed_links'
+		mute_members = 'permissions.mute_members'
+		send_messages = 'permissions.send_messages'
+		send_messages_in_threads = 'permissions.send_messages_in_threads'
+		set_voice_channel_status = 'permissions.set_voice_channel_status'
+		speak = 'permissions.speak'
+		view_channel = 'permissions.view_channel'
 
 	class Cmd:
 		class UpdateYtDlp:
@@ -141,3 +162,6 @@ class LocaleKeys:
 
 		class Tracklist:
 			desc = 'cmd.tracklist.desc'
+
+		class CheckPermissions:
+			desc = 'cmd.check_permissions.desc'
