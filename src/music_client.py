@@ -153,9 +153,21 @@ class MusicClient:
 
 			while self.is_playing_or_paused:
 				await asyncio.sleep(1)
+
+				# TODO wait for the issue: https://github.com/Pycord-Development/pycord/issues/3106 to be resolved
+				# if not self.is_connected:
+				# 	for _ in range(10):
+				# 		if not self.is_connected:
+				# 			await asyncio.sleep(1)
+				# 		else:
+				# 			break
+				# 	else:
+				# 		logger.error(f'disconnecting after 5 seconds wait')
+				# 		return await self.reset(force=True)
+
 			self.track_index += 1
 		
-		await self.reset()
+		return await self.reset()
 
 	async def leave_the_channel_with_timeout(self, bot_member: discord.Member):
 		if self.__intends_to_leave:
