@@ -24,19 +24,23 @@ music_clients: Dict[int, 'MusicClient'] = {}
 
 def get_music_client(guild: discord.Guild) -> 'MusicClient':
 	if guild.id not in music_clients.keys():
-		music_clients[guild.id] = MusicClient(lambda: Storage.dj_channels.get(guild.id))
+		music_clients[guild.id] = MusicClient(guild, lambda: Storage.dj_channels.get(guild.id))
 	return music_clients[guild.id]
 
 class MusicClient:
-	def __init__(self, channel_getter: Callable[[], discord.TextChannel]=None) -> None:
+	def __init__(self, guild: discord.Guild, channel_getter: Callable[[], discord.TextChannel]) -> None:
 		self.lock: asyncio.Lock = asyncio.Lock()
+		self.guild = guild
 		self.channel_getter: Callable[[], discord.TextChannel] = channel_getter
-		self.voice_client: discord.VoiceClient = None
 		self.track_index: int = 0
 		self.message_player: MessagePlayer = MessagePlayer(self)
 		self.__started: bool = False
 		self.__intends_to_leave: bool = False
 		self.__queue: List[Union[Track, TrackFile]] = []
+
+	@property
+	def voice_client(self) -> discord.VoiceClient | None:
+		return self.guild.voice_client
 
 	@property
 	def channel(self) -> discord.TextChannel:
@@ -68,6 +72,10 @@ class MusicClient:
 	def start(self) -> None:
 		self.__started = True
 
+	def __stop_voice_client(self) -> None:
+		if self.voice_client:
+			self.voice_client.stop()
+
 	def __voice_channels_are_equal(self, user: discord.Member) -> bool:
 		return user.voice and self.voice_client and user.voice.channel == self.voice_client.channel
 
@@ -76,7 +84,7 @@ class MusicClient:
 			return
 		if self.track_index + 1 >= len(self.queue):
 			self.track_index = -1
-		self.voice_client.stop()
+		self.__stop_voice_client()
 		await self.channel.send(embed=discord.Embed(description=translate(LocaleKeys.Info.user_play_next, user.mention), colour=discord.Color.gold()), delete_after=60)
 
 	async def previous(self, user: discord.Member) -> None:
@@ -85,7 +93,7 @@ class MusicClient:
 		self.track_index -= 2
 		if self.track_index < -1:
 			self.track_index = -1
-		self.voice_client.stop()
+		self.__stop_voice_client()
 		await self.channel.send(embed=discord.Embed(description=translate(LocaleKeys.Info.user_play_prev, user.mention), colour=discord.Color.gold()), delete_after=60)
 
 	async def pause(self, user: discord.Member) -> bool:
@@ -149,21 +157,20 @@ class MusicClient:
 								   translate(LocaleKeys.Label.for_file, track.title))
 				await self.channel.send(embed=discord.Embed(description=translate(LocaleKeys.Info.track_play_error, formatted_track, reason), colour=discord.Color.red()), delete_after=30)
 				excepted += 1
-				self.voice_client.stop()
+				self.__stop_voice_client()
 
 			while self.is_playing_or_paused:
 				await asyncio.sleep(1)
 
-				# TODO wait for the issue: https://github.com/Pycord-Development/pycord/issues/3106 to be resolved
-				# if not self.is_connected:
-				# 	for _ in range(10):
-				# 		if not self.is_connected:
-				# 			await asyncio.sleep(1)
-				# 		else:
-				# 			break
-				# 	else:
-				# 		logger.error(f'disconnecting after 5 seconds wait')
-				# 		return await self.reset(force=True)
+				if not self.is_connected:
+					for _ in range(10):
+						if not self.is_connected:
+							await asyncio.sleep(1)
+						else:
+							break
+					else:
+						logger.error(f'disconnecting after 10 seconds wait')
+						return await self.reset(force=True)
 
 			self.track_index += 1
 		
@@ -192,7 +199,6 @@ class MusicClient:
 			if item.is_file():
 				item.unlink()
 
-		self.voice_client = None
 		self.track_index = 0
 		self.__started = False
 		self.__queue = []

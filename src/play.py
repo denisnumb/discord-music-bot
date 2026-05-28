@@ -34,12 +34,11 @@ logger = logging.getLogger(__name__)
 
 async def try_connect(ctx: Union[discord.ApplicationContext, LightContext]) -> bool:
 	try:
-		get_music_client(ctx.guild).voice_client = await ctx.author.voice.channel.connect(timeout=30)
+		await ctx.author.voice.channel.connect(timeout=30)
 		return True
 	except:
 		logger.warning(f'Error while trying to connect to voice channel:\n{traceback.format_exc()}')
-		mc = get_music_client(ctx.guild)
-		await mc.reset(force=True)
+		await get_music_client(ctx.guild).reset(force=True)
 		await ctx.send(embed=discord.Embed(description=translate(LocaleKeys.Info.join_channel_error, ctx.author.mention), colour=discord.Color.red()), delete_after=60)
 		return False
 
